@@ -73,8 +73,8 @@ class User:
             # --- Indexes ---
             collection.create_index([("username", 1)], unique=True)
 
-            # Index for Ranking (Descending)
-            collection.create_index([("rankScore", -1)])
+            # Index for Leaderboard (Monthly Contributions DESC, JoinedAt ASC)
+            collection.create_index([("monthlyContributions", -1), ("joinedAt", 1)])
 
             # Index for Rating Score
             collection.create_index([("userRating.totalScore", -1)])
@@ -184,6 +184,10 @@ class User:
         if collection is None or not ObjectId.is_valid(user_id):
             return 2
 
+        # 1. Length Restriction
+        if len(chosen_username) > 20:
+            return 3  # Error code 3: Username too long
+
         existing_user = collection.find_one({
             "username": chosen_username,
             "_id": {"$ne": ObjectId(user_id)}
@@ -231,22 +235,42 @@ class User:
     @staticmethod
     def get_user_score_detail(user_id: str):
         """
-        Calculates the user's rank and fetches their current score.
-        Rank 1 = Highest Score.
+        Calculates the user's rank based on monthly contributions.
+        Filter: monthlyContributions > 0.
+        Sorting: monthlyContributions DESC, joinedAt ASC (tie-breaker).
         Returns: {'rank': int, 'score': int}
         """
         collection = User.get_collection()
         if collection is None:
             return None
 
-        user = collection.find_one({"_id": ObjectId(user_id)}, {"rankScore": 1})
+        # Fetch required fields for new ranking logic
+        user = collection.find_one(
+            {"_id": ObjectId(user_id)},
+            {"monthlyContributions": 1, "joinedAt": 1}
+        )
         if not user:
             return None
 
-        my_score = user.get("rankScore", 0)
+        my_score = user.get("monthlyContributions", 0)
+        my_joined_at = user.get("joinedAt")
 
-        # Count users with a strictly higher score
-        higher_rank_count = collection.count_documents({"rankScore": {"$gt": my_score}})
+        # If contribution is 0, they are not on the leaderboard
+        if my_score <= 0:
+            return None
+
+        # Count users who are strictly better:
+        # 1. Higher score
+        # 2. Same score but joined earlier
+        higher_rank_count = collection.count_documents({
+            "$or": [
+                {"monthlyContributions": {"$gt": my_score}},
+                {
+                    "monthlyContributions": my_score,
+                    "joinedAt": {"$lt": my_joined_at}
+                }
+            ]
+        })
 
         return {
             "rank": higher_rank_count + 1,
@@ -256,28 +280,34 @@ class User:
     @staticmethod
     def get_top_users(limit=3):
         """
-        Fetches the top N users based on rankScore.
+        Fetches the top N users based on monthlyContributions.
+        Filter: monthlyContributions > 0.
+        Sort: monthlyContributions DESC, joinedAt ASC.
         Returns a list of dicts: {username, avatarId, score, contributions}
         """
         collection = User.get_collection()
         if collection is None:
             return []
 
-        cursor = collection.find({}, {
-            "username": 1,
-            "userAvatarId": 1,
-            "rankScore": 1,
-            "totalContributions": 1,
-            "_id": 0
-        }).sort("rankScore", -1).limit(limit)
+        # Update Query and Sort
+        cursor = collection.find(
+            {"monthlyContributions": {"$gt": 0}},  # Only non-zero contributions
+            {
+                "username": 1,
+                "userAvatarId": 1,
+                "monthlyContributions": 1,  # Fetch monthly stats
+                "_id": 0
+            }
+        ).sort([("monthlyContributions", -1), ("joinedAt", 1)]).limit(limit)
 
         top_users = []
         for doc in cursor:
             top_users.append({
                 "username": doc.get("username"),
                 "avatarId": doc.get("userAvatarId"),
-                "score": doc.get("rankScore", 0),
-                "contributions": doc.get("totalContributions", 0)
+                # Score is now monthlyContributions
+                "score": doc.get("monthlyContributions", 0),
+                "contributions": doc.get("monthlyContributions", 0)
             })
 
         return top_users
@@ -292,11 +322,10 @@ class User:
             return False
 
         # 1. Atomic Increment & Fetch
-        # This increments the counter and returns the UPDATED document in one go.
         updated_user = collection.find_one_and_update(
             {"_id": ObjectId(user_id)},
             {"$inc": {"consecutiveBadUploads": 1}},
-            projection={"consecutiveBadUploads": 1},  # Only fetch what we need
+            projection={"consecutiveBadUploads": 1},
             return_document=ReturnDocument.AFTER
         )
 
@@ -325,33 +354,27 @@ class User:
         if collection is None:
             return True
 
-        # Optimization: Only fetch the 'bannedUntil' field
         user = collection.find_one(
             {"_id": ObjectId(user_id)},
             {"bannedUntil": 1}
         )
 
         if not user:
-            return True  # User not found, arguably allowed or handle error
+            return True
 
         banned_until = user.get("bannedUntil")
 
-        # Case 1: Not Banned
         if banned_until is None:
             return True
 
         now = datetime.now(timezone.utc)
 
-        # Ensure timezone awareness for comparison
         if banned_until.tzinfo is None:
             banned_until = banned_until.replace(tzinfo=timezone.utc)
 
-        # Case 2: Still Banned
         if now <= banned_until:
             return False
 
-        # Case 3: Ban Expired (Lazy Reset)
-        # We reset the ban and counters immediately so next check is fast
         collection.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {"bannedUntil": None, "consecutiveBadUploads": 0}}

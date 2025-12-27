@@ -102,6 +102,13 @@ def update_username(current_user):
             )
             return jsonify(response.to_dict()), 409
 
+        elif status == 3:
+            response = Response(
+                message_en="Username cannot exceed 20 characters.",
+                message_ja="ユーザー名は20文字以内で入力してください。"
+            )
+            return jsonify(response.to_dict()), 400
+
         else:
             # DB Error or Status 2
             response = Response(
