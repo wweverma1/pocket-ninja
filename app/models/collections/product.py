@@ -24,6 +24,7 @@ class Product:
     def bulk_upsert(purchase_date: datetime, store_name: str, products_data: list):
         """
         Updates product prices based on exact name match.
+        Handles 'updated_name' and 'updated_english_name' for existing products.
         """
         collection = Product.get_collection()
         if collection is None:
@@ -40,8 +41,12 @@ class Product:
 
         for item in products_data:
             input_name = item.get('name')
-            english_name = item.get('english_name')
+            english_name = item.get('english_name')  # Present only if product doesn't exist
             price = item.get('price')
+
+            # Fields specifically for updating existing products
+            updated_name = item.get('updated_name')
+            updated_english_name = item.get('updated_english_name')
 
             if not input_name or price is None:
                 continue
@@ -54,41 +59,52 @@ class Product:
                     # Case: Product Exists
                     prices = existing_product.get('prices', {})
                     existing_store_data = prices.get(store_name)
-                    should_update = False
+                    
+                    set_fields = {}
 
+                    # --- Price Update Logic ---
+                    should_update_price = False
                     if existing_store_data:
                         # Store exists, check date
                         last_date = existing_store_data.get('date')
                         # Update only if the stored date is older than the new purchase_date
                         if isinstance(last_date, datetime) and last_date < purchase_date:
-                            should_update = True
+                            should_update_price = True
                         elif not isinstance(last_date, datetime):
                             # If date format is invalid/missing, force update
-                            should_update = True
+                            should_update_price = True
                     else:
                         # Store does not exist in prices list
-                        should_update = True
+                        should_update_price = True
 
-                    if should_update:
-                        update_fields = {
-                            f"prices.{store_name}": {
-                                "price": price,
-                                "date": purchase_date
-                            },
-                            "englishName": english_name
+                    if should_update_price:
+                        set_fields[f"prices.{store_name}"] = {
+                            "price": price,
+                            "date": purchase_date
                         }
-                        
+                        updated_count += 1
+
+                    # --- Name/Details Update Logic ---
+                    # Check for updated_name
+                    if updated_name and isinstance(updated_name, str) and updated_name.strip():
+                        set_fields["name"] = updated_name.strip()
+                    
+                    # Check for updated_english_name
+                    if updated_english_name and isinstance(updated_english_name, str) and updated_english_name.strip():
+                        set_fields["englishName"] = updated_english_name.strip()
+
+                    # Apply Updates if any fields are set
+                    if set_fields:
                         collection.update_one(
                             {"_id": existing_product["_id"]},
-                            {"$set": update_fields}
+                            {"$set": set_fields}
                         )
-                        updated_count += 1
 
                 else:
                     # Case: Brand New Product
                     collection.insert_one({
                         "name": input_name,
-                        "englishName": english_name,
+                        "englishName": english_name,  # Use the creation-time english name
                         "prices": {
                             store_name: {
                                 "price": price,
