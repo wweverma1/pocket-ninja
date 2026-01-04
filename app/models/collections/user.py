@@ -20,7 +20,7 @@ class User:
         return db['users']
 
     @staticmethod
-    def create_user(username: str, line_account_id: str = None, google_account_id: str = None, yahoo_account_id: str = None):
+    def create_user(username: str, email: str = None, line_account_id: str = None, google_account_id: str = None, yahoo_account_id: str = None):
         """Creates a new user document with initialized lifetime and monthly stats."""
         collection = User.get_collection()
         if collection is None:
@@ -31,6 +31,7 @@ class User:
 
         user_data = {
             "username": username,
+            "email": email,
             "joinedAt": now,
 
             "userAvatarId": random.randint(1, 8),

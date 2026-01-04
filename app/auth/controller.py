@@ -1,6 +1,7 @@
 import os
 import requests
 import urllib.parse
+import jwt
 from flask import request, redirect, jsonify
 from app.models.response import Response
 from app.models.collections.user import User
@@ -19,7 +20,7 @@ def final_redirect(token: str, is_new_user: bool, username: str = None, error_me
     return redirect(f"{FRONTEND_URL}/auth/success?token={token}&username={urllib.parse.quote(username)}&is_new_user={str(is_new_user).lower()}")
 
 
-def handle_social_login_logic(social_id: str, provider: str):
+def handle_social_login_logic(social_id: str, provider: str, email: str = None):
     """Centralized logic to determine if user is new or existing."""
     if not social_id:
         return final_redirect(None, False, None, "Failed to get unique social ID")
@@ -37,6 +38,7 @@ def handle_social_login_logic(social_id: str, provider: str):
 
         kwargs = {
             "username": username,
+            "email": email,
             f"{provider}_account_id": social_id
         }
 
@@ -74,7 +76,7 @@ def line_redirect():
         'response_type': 'code',
         'client_id': client_id,
         'redirect_uri': redirect_uri,
-        'scope': 'profile openid',
+        'scope': 'profile openid email',
         'state': 'pocket-ninja-line-state'
     }
     return redirect(f"{AUTH_URL}?{urllib.parse.urlencode(params)}")
@@ -88,7 +90,7 @@ def yahoo_redirect():
         'response_type': 'code',
         'client_id': client_id,
         'redirect_uri': redirect_uri,
-        'scope': 'openid profile',
+        'scope': 'openid profile email',
         'state': 'pocket-ninja-yahoo-state'
     }
     return redirect(f"{AUTH_URL}?{urllib.parse.urlencode(params)}")
@@ -110,7 +112,7 @@ def google_callback():
         token_data = resp.json()
         user_info = requests.get("https://openidconnect.googleapis.com/v1/userinfo",
                                  headers={'Authorization': f"Bearer {token_data['access_token']}"}).json()
-        return handle_social_login_logic(user_info.get('sub'), 'google')
+        return handle_social_login_logic(user_info.get('sub'), 'google', user_info.get('email'))
     except Exception as e:
         return final_redirect(None, False, None, str(e))
 
@@ -127,9 +129,18 @@ def line_callback():
         }, headers={'Content-Type': 'application/x-www-form-urlencoded'})
         resp.raise_for_status()
         token_data = resp.json()
+        
+        # Extract email from ID Token
+        email = None
+        id_token = token_data.get('id_token')
+        if id_token:
+            # Decode without verification since we received it directly from the token endpoint
+            decoded = jwt.decode(id_token, options={"verify_signature": False})
+            email = decoded.get('email')
+
         profile = requests.get("https://api.line.me/v2/profile",
                                headers={'Authorization': f"Bearer {token_data['access_token']}"}).json()
-        return handle_social_login_logic(profile.get('userId'), 'line')
+        return handle_social_login_logic(profile.get('userId'), 'line', email)
     except Exception as e:
         return final_redirect(None, False, None, str(e))
 
@@ -148,6 +159,6 @@ def yahoo_callback():
         token_data = resp.json()
         user_info = requests.get("https://api.login.yahoo.com/openid/v1/userinfo",
                                  headers={'Authorization': f"Bearer {token_data['access_token']}"}).json()
-        return handle_social_login_logic(user_info.get('sub'), 'yahoo')
+        return handle_social_login_logic(user_info.get('sub'), 'yahoo', user_info.get('email'))
     except Exception as e:
         return final_redirect(None, False, None, str(e))
