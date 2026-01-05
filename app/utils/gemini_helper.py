@@ -15,31 +15,37 @@ class StoreIdentifier(BaseModel):
 
 
 class Product(BaseModel):
-    name: str = Field(description="The product name. If matched with the provided list, use the EXACT list name. If new, use the name on receipt.")
-    english_name: Optional[str] = Field(description="English translation. Optional if the product is matched with the provided list.")
+    name: str = Field(
+        description="The product name. If matched with the provided list, use the EXACT list name. If new, use the name on receipt.")
+    english_name: Optional[str] = Field(
+        description="English translation. Optional if the product is matched with the provided list.")
     price: float = Field(description="Price of the product excluding discounts.")
-    
+
     # New fields for database improvement
-    updated_name: Optional[str] = Field(description="Proposed better/cleaner name for the product if the existing list name is vague or contains typos.")
+    updated_name: Optional[str] = Field(
+        description="Proposed better/cleaner name for the product if the existing list name is vague or contains typos.")
     updated_english_name: Optional[str] = Field(description="English translation of the proposed updated_name.")
 
 
 class ReceiptAnalysis(BaseModel):
     error_code: int = Field(
         description="0 for success. 1: Invalid Image. 2: Edited/Tampered. 3: Date Invalid (>3 days old/future). 4: Date Missing. 5: Location Invalid. 6: Location Missing. 7: Store Name Missing.")
-    
-    purchase_date: Optional[str] = Field(description="The purchase date found on the receipt in YYYY-MM-DD format. Null if error_code != 0.")
-    
-    store_name: Optional[str] = Field(description="The canonical store brand name (e.g., 'Lawson'). Null if error_code != 0.")
-    store_identifier: Optional[StoreIdentifier] = Field(description="Specific branch/store location details. Null if error_code != 0.")
-    
+
+    purchase_date: Optional[str] = Field(
+        description="The purchase date found on the receipt in YYYY-MM-DD format. Null if error_code != 0.")
+
+    store_name: Optional[str] = Field(
+        description="The canonical store brand name (e.g., 'Lawson'). Null if error_code != 0.")
+    store_identifier: Optional[StoreIdentifier] = Field(
+        description="Specific branch/store location details. Null if error_code != 0.")
+
     total_amount: Optional[float] = Field(description="The total amount paid. 0.0 if error_code != 0.")
     products: list[Product] = Field(description="List of extracted and matched products. Empty if error_code != 0.")
 
 
 def get_receipt_analysis_instruction(date_str, target_city, available_stores: list[str], product_names: list[str]):
     stores_list_str = json.dumps(available_stores, ensure_ascii=False)
-    # Join the first 500 products to avoid hitting context limits if list is huge, 
+    # Join the first 500 products to avoid hitting context limits if list is huge,
     # or pass all if feasible. Assuming standard receipt context window handles ~10k tokens easily.
     products_list_str = json.dumps(product_names, ensure_ascii=False)
 

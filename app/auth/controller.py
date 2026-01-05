@@ -129,7 +129,7 @@ def line_callback():
         }, headers={'Content-Type': 'application/x-www-form-urlencoded'})
         resp.raise_for_status()
         token_data = resp.json()
-        
+
         # Extract email from ID Token
         email = None
         id_token = token_data.get('id_token')

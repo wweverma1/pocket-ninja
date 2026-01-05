@@ -58,7 +58,7 @@ class Product:
                     # Case: Product Exists
                     prices = existing_product.get('prices', {})
                     existing_store_data = prices.get(store_name)
-                    
+
                     set_fields = {}
 
                     # --- Price Update Logic ---
@@ -87,7 +87,7 @@ class Product:
                     # Check for updated_name
                     if updated_name and isinstance(updated_name, str) and updated_name.strip():
                         set_fields["name"] = updated_name.strip()
-                    
+
                     # Check for updated_english_name
                     if updated_english_name and isinstance(updated_english_name, str) and updated_english_name.strip():
                         set_fields["englishName"] = updated_english_name.strip()
