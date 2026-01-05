@@ -22,7 +22,8 @@ class Receipt:
 
         # Add Index
         try:
-            collection.create_index([("userId", 1)])
+            # Compound index: Optimizes 'get_by_user' which filters by userId and sorts by submittedAt
+            collection.create_index([("userId", 1), ("submittedAt", -1)])
         except Exception as e:
             print(f"Error creating receipt index: {e}")
 
@@ -110,14 +111,14 @@ class Receipt:
             print(f"Invalid month format provided: {month}")
             return []
 
+        # Projection to exclude unnecessary fields if needed, 
+        # but returning full doc (minus internal IDs) is usually fine for this view
         projection = {"_id": 0, "userId": 0}
 
         cursor = collection.find(query, projection).sort("submittedAt", -1)
 
-        # Convert ObjectId to str for JSON serialization
+        # Convert ObjectId to str for JSON serialization if needed later
         results = []
         for doc in cursor:
-            # doc['_id'] = str(doc['_id'])
-            # doc['userId'] = str(doc['userId'])
             results.append(doc)
         return results
