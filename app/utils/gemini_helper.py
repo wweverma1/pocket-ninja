@@ -48,52 +48,109 @@ def get_receipt_analysis_instruction(target_city, valid_start_date, valid_end_da
     products_list_str = json.dumps(product_catalog, ensure_ascii=False)
 
     receipt_analysis_instruction = textwrap.dedent(f"""
-        You are an receipt analysis expert for {target_city}, Japan.
-        
-        **Objective**: Extract structured data from the receipt image and help in deduplication of product catalog.
-        
-        **Context**:
-        - Target City: {target_city}
-        - Valid Date Range: {valid_start_date} to {valid_end_date} (inclusive).
-        - Known Stores: {stores_list_str}
-        - Catalog: {products_list_str} 
-          (Catalog items contain 'min_match_price' and 'max_match_price' along with name to help with fuzzy matching).
+        You are a receipt data extraction specialist for Japanese retail stores in {target_city}.
 
-        **Step 1: Validation (Set error_code)**
-        - **Code 1 (Not Receipt)**: Image is not a receipt.
-        - **Code 2 (Edited)**: Image shows digital manipulation, photoshop, or is edited.
-        - **Code 3 (Date Invalid)**: Date on receipt is NOT within {valid_start_date} and {valid_end_date}.
-        - **Code 4 (Unsupported Store)**: Receipt is NOT from a Convenience Store (Konbini), Supermarket, or Drug Store. (Reject Clothing, Electronics, Restaurants).
-        - **Code 5 (Location)**: Store address is clearly outside {target_city}.
-        - **Code 0 (Success)**: Valid receipt. Proceed to extraction.
+        **Your Task**: Analyze this receipt image, validate it, extract structured data, and help in deduplication by matching products against an existing catalog.
 
-        **Step 2: Extraction (If Code 0)**
-        1. **Date**: Extract YYYY-MM-DD.
-        2. **Store**: Identify Brand and Branch.
-        3. **Products (Extraction & Matching Rules)**:
-           For each item on the receipt, follow this logic tree:
-           
-           **A. Attempt Match against Catalog:**
-             - **Criteria 1 (Name)**: Does the receipt text roughly match the Catalog Name (represent same real word product)?
-             - **Criteria 2 (Price)**: Is the receipt price between 'min_match_price' and 'max_match_price' of that Catalog item?
-             
-             - **MATCH DECISION**:
-               - If Name is EXACT MATCH -> **MATCH**.
-               - If Name is SIMILAR (brand, product name, varient/ flavour are same but unsure about size/ capacity) + Price is IN RANGE -> **MATCH**.
-               - If Name is SIMILAR + Price is OUT OF RANGE -> **NO MATCH** (Different size/ capacity).
+        ## Context Information
 
-           **B. Output Format:**
-             - **CASE: MATCH FOUND**: 
-               - Set 'name' = EXACT Catalog Name.
-               - If the Catalog Name contains typos/issues and receipt is clear or you think name can be improved for future matching: Set 'updated_name' = Better Name.
-             
-             - **CASE: NO MATCH (New Product)**:
-               - Set 'name' = Cleaned Name from Receipt (Fix typos, expand '...', e.g. 'Coca-Co' -> 'Coca-Cola', remove noise).
-               - Set 'updated_name' = NULL.
+        **Target City**: {target_city}
+        **Valid Date Range**: {valid_start_date} to {valid_end_date} (inclusive)
+        **Supported Store Types**: Convenience stores (konbini), supermarkets, drug stores ONLY
+        **Known Store Brands**: {stores_list_str}
+        **Product Catalog**: {products_list_str}
 
-        4. **Price**: Extract the maximum/tax-included price line for the item. Ignore any discounts.
+        Note: Each catalog item has 'name', 'min_match_price', and 'max_match_price' for fuzzy matching.
 
-        **Output**: JSON strictly matching the schema.
+        ## Step 1: Receipt Validation
+
+        Examine the image and set the appropriate error_code:
+
+        - **error_code: 0** = Valid receipt, proceed to extraction
+        - **error_code: 1** = Not a receipt (e.g., invoice, ticket, document, blank image)
+        - **error_code: 2** = Receipt shows signs of digital editing, manipulation, or photoshopping
+        - **error_code: 3** = Purchase date is outside the valid range ({valid_start_date} to {valid_end_date})
+        - **error_code: 4** = Receipt is from an unsupported store type (reject: clothing stores, electronics retailers, restaurants, cafes, bars)
+        - **error_code: 5** = Store address clearly indicates location outside {target_city}
+
+        If error_code is NOT 0, stop here and return the response with null values for other fields.
+
+        ## Step 2: Data Extraction (Only if error_code = 0)
+
+        ### A. Date Extraction
+        - Extract purchase date in YYYY-MM-DD format
+        - Common Japanese date formats: "YYYY年MM月DD日", "YY/MM/DD", "YYYY.MM.DD"
+        - Receipt dates are typically near the top or bottom of the receipt
+
+        ### B. Store Identification
+        - **store_name**: Extract the store brand name (e.g., "ローソン", "セブンイレブン", "AEON")
+        - **store_identifier**: 
+          - ja: Full branch name in Japanese (e.g., "セブンイレブン札幌北8条店")
+          - en: Romanized English version (e.g., "Seven-Eleven Sapporo Kita 8-jo")
+        - Store name typically appears at the top of the receipt
+
+        ### C. Total Amount
+        - Extract the final total amount paid (generally 税込 or 合計金額)
+        - This is usually at the bottom of the receipt
+        - Ignore subtotals (generally 商品合計) and focus on the final total after tax
+
+        ### D. Product Extraction and Matching
+
+        For each product line item on the receipt, follow this process:
+
+        **Step D1: Read Receipt Text**
+        - Japanese receipts often truncate product names (e.g., "コカコー..." for "コカコーラ")
+        - Extract the visible text but infer the full product name when truncation is obvious
+        - Watch for quantity indicators: "×2", "2個", "2本" (may appear after the product name)
+        - Price is typically right-aligned on the receipt
+
+        **Step D2: Match Against Catalog**
+
+        For each product, attempt to find a match in the provided catalog to help in deduplication:
+
+        **Matching Criteria:**
+        1. **Name Similarity**: Does the receipt text represent the same real-world product as the catalog entry?
+           - Consider: Same brand + same product line + same variant/flavor
+           - Ignore minor OCR errors, truncation, spacing differences
+           - Account for size/capacity variations (e.g., "500ml" vs "1L" = different products)
+
+        2. **Price Range Check**: Is the receipt price within [min_match_price, max_match_price] of the catalog item?
+
+        **Matching Decision Logic:**
+        - **EXACT NAME MATCH** → MATCH (use catalog name)
+        - **SIMILAR NAME + PRICE IN RANGE** → MATCH (use catalog name)
+        - **SIMILAR NAME + PRICE OUT OF RANGE** → NO MATCH (likely different size/quantity)
+        - **DIFFERENT NAME** → NO MATCH (new product)
+
+        **Step D3: Output Format**
+
+        **If MATCH found:**
+        - name: Use the EXACT catalog name (copy it precisely)
+        - english_name: null (catalog already has this)
+        - price: The price from the receipt
+        - updated_name: Only set this if the catalog name has obvious issues (typos, unclear naming, missing brand info) AND the receipt shows a clearer version. Otherwise null.
+        - updated_english_name: English version of updated_name if applicable, otherwise null
+
+        **If NO MATCH (new product):**
+        - name: Cleaned Japanese name from receipt
+          - Fix OCR errors (e.g., "コカコー..." → "コカコーラ")
+          - Remove noise characters, extra spaces
+          - Expand obvious truncations
+          - Keep brand name if visible (e.g., "森永製菓 ハイチュウ グレープ")
+        - english_name: Provide English translation/romanization
+        - price: The price from the receipt  
+        - updated_name: null
+        - updated_english_name: null
+
+        ### Important Notes for Product Extraction:
+        - Extract ONLY purchasable products (ignore tax lines, discount lines, payment method lines)
+        - Use the tax-included price if both tax-included and tax-excluded prices are shown
+        - If the same product appears multiple times, list it once with the single unit price
+        - Do not invent products that aren't clearly visible on the receipt
+
+        ## Output Format
+
+        Return valid JSON matching the provided schema exactly. All string values must preserve Japanese characters properly.
     """)
     return receipt_analysis_instruction
 
@@ -118,6 +175,7 @@ def analyze_receipt_with_gemini(image_bytes: bytes, instruction: str):
             config={
                 "response_mime_type": "application/json",
                 "response_schema": ReceiptAnalysis,
+                "temperature": 0.2,  # Lower temperature for more deterministic output
             }
         )
         return json.loads(response.text)
