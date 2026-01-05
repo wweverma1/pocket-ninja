@@ -1,6 +1,6 @@
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import request, jsonify
 
 from app.models.response import Response
@@ -70,7 +70,10 @@ def add_or_update_product_details(current_user):
                 message_ja="領収書の画像が提供されていません。"
             )
             if receipt_id:
-                Receipt.update_receipt_status(receipt_id, "FAILED", response.to_dict())
+                Receipt.update_receipt_status(receipt_id, "FAILED", {
+                    "en": response.message_en,
+                    "ja": response.message_ja
+                })
             return jsonify(response.to_dict()), 400
 
         file_storage = request.files['receiptImage']
@@ -90,18 +93,25 @@ def add_or_update_product_details(current_user):
                 message_ja="画像処理に失敗しました。"
             )
             if receipt_id:
-                Receipt.update_receipt_status(receipt_id, "FAILED", response.to_dict())
+                Receipt.update_receipt_status(receipt_id, "FAILED", {
+                    "en": response.message_en,
+                    "ja": response.message_ja
+                })
             return jsonify(response.to_dict()), 400
 
         # 1. Get Context Data
         available_stores = Store.get_all_store_names()
-        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        available_products = Product.get_all_product_names()
+        jst_tz = timezone(timedelta(hours=9))
+        current_date_jp = datetime.now(jst_tz)
+        current_date_jp_str = current_date_jp.strftime("%Y-%m-%d")
 
         # 2. Prepare Gemini Instruction
         instruction = get_receipt_analysis_instruction(
-            date_str=now_str,
+            date_str=current_date_jp_str,
             target_city=TARGET_CITY,
-            available_stores=available_stores
+            available_stores=available_stores,
+            available_products=available_products
         )
 
         # 3. Call Gemini
@@ -111,7 +121,10 @@ def add_or_update_product_details(current_user):
             response = Response(message_en="AI Analysis failed. Please try again.",
                                 message_ja="AI分析に失敗しました。もう一度お試しください。")
             if receipt_id:
-                Receipt.update_receipt_status(receipt_id, "FAILED", response.to_dict())
+                Receipt.update_receipt_status(receipt_id, "FAILED", {
+                    "en": response.message_en,
+                    "ja": response.message_ja
+                })
             return jsonify(response.to_dict()), 502
 
         # 4. Check Gemini Error Codes
@@ -139,32 +152,44 @@ def add_or_update_product_details(current_user):
 
             response = Response(
                 message_en=err_obj["en"],
-                message_ja=err_obj["ja"],
-                result=analysis_result
+                message_ja=err_obj["ja"]
             )
 
             if receipt_id:
-                Receipt.update_receipt_status(receipt_id, "FAILED", response.to_dict())
+                Receipt.update_receipt_status(receipt_id, "FAILED", {
+                    "en": response.message_en,
+                    "ja": response.message_ja
+                })
             return jsonify(response.to_dict()), 400
 
         # 5. Extract Valid Data
-        store_name = analysis_result.get("store_name")
-        products = analysis_result.get("products", [])
+        purchase_date_str = analysis_result.get("purchase_date", None)
+        store_name = analysis_result.get("store_name", None)
+        store_identifier = analysis_result.get("store_identifier", None)
         total_amount = analysis_result.get("total_amount", 0.0)
+        products = analysis_result.get("products", [])
 
         if not products:
             response = Response(
                 message_en="No products found in receipt.",
-                message_ja="レシートに商品が見つかりませんでした。",
-                result=analysis_result
+                message_ja="レシートに商品が見つかりませんでした。"
             )
 
             if receipt_id:
-                Receipt.update_receipt_status(receipt_id, "FAILED", response.to_dict())
+                Receipt.update_receipt_status(receipt_id, "FAILED", {
+                    "en": response.message_en,
+                    "ja": response.message_ja
+                })
             return jsonify(response.to_dict()), 400
 
+        try:
+            purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            # Fallback
+            purchase_date = datetime.now() - timedelta(days=3)
+
         # 6. Update Product Database
-        updated_count = Product.bulk_upsert(store_name, products)
+        updated_count = Product.bulk_upsert(purchase_date, store_name, products)
 
         # 7. Async Update User Stats
         thread = threading.Thread(
@@ -173,30 +198,25 @@ def add_or_update_product_details(current_user):
         )
         thread.start()
 
-        # 8. Success Response
-        result_data = {
-            "receiptId": str(receipt_id),
-            "store": store_name,
-            "products_found": len(products),
-            "products_updated": updated_count,
-            "total_amount": total_amount
-        }
-
         response = Response(
             errorStatus=0,
             message_en="Receipt processed successfully!",
             message_ja="レシートの処理が完了しました！",
-            result=result_data
         )
 
         if receipt_id:
             Receipt.update_receipt_status(
                 receipt_id=receipt_id,
                 status="SUCCESS",
-                result_data=response.to_dict(),
+                status_message={
+                    "en": response.message_en,
+                    "ja": response.message_ja
+                },
+                purchase_date=purchase_date,
                 store_name=store_name,
+                store_identifier=store_identifier,
                 total_amount=total_amount,
-                products_count=len(products),
+                products_found=products,
                 products_updated=updated_count
             )
 
