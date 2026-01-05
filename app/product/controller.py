@@ -120,7 +120,7 @@ def add_or_update_product_details(current_user):
             error_map = {
                 1: {"en": "Image is not a receipt.", "ja": "画像はレシートではありません。"},
                 2: {"en": "Receipt appears edited.", "ja": "レシートが編集されている可能性があります。"},
-                3: {"en": "Receipt date is too old or invalid.", "ja": "レシートの日付が古すぎるか、無効です。"},
+                3: {"en": "Receipt purchase date is too old or invalid.", "ja": "レシートの購入日が古すぎるか無効です。"},
                 4: {"en": "Receipt is not from a supported store.", "ja": "レシートはサポートされているストアのものではありません。"},
                 5: {"en": "Store is not located in Sapporo.", "ja": "店舗が札幌市外のようです。"},
             }

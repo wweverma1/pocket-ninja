@@ -10,8 +10,8 @@ from google.genai import types
 # --- Pydantic Models ---
 
 class StoreIdentifier(BaseModel):
-    ja: str = Field(description="Japanese name of the specific branch (e.g., 'サツドラ北8条店')")
-    en: str = Field(description="English romanization of the branch (e.g., 'Satudora Kita 8-jo')")
+    ja: str = Field(description="Japanese address/location of the specific branch (e.g., '北8条店', '札幌駅前店')")
+    en: str = Field(description="English romanization of the branch address/location (e.g., 'Kita 8-jo', 'Sapporo Ekimae')")
 
 
 class Product(BaseModel):
@@ -37,7 +37,7 @@ class ReceiptAnalysis(BaseModel):
     store_name: Optional[str] = Field(
         description="The canonical store brand name (e.g., 'Lawson').")
     store_identifier: Optional[StoreIdentifier] = Field(
-        description="Specific branch details.")
+        description="Specific branch address/location details.")
 
     total_amount: Optional[float] = Field(description="The total amount paid.")
     products: list[Product] = Field(description="List of extracted products.")
@@ -85,8 +85,8 @@ def get_receipt_analysis_instruction(target_city, valid_start_date, valid_end_da
         ### B. Store Identification
         - **store_name**: Extract the store brand name (e.g., "ローソン", "セブンイレブン", "AEON")
         - **store_identifier**: 
-          - ja: Full branch name in Japanese (e.g., "セブンイレブン札幌北8条店")
-          - en: Romanized English version (e.g., "Seven-Eleven Sapporo Kita 8-jo")
+          - ja: Branch address/location only in Japanese (e.g., "札幌北8条店", "駅前店")
+          - en: Romanized English version of address/location (e.g., "Sapporo Kita 8-jo", "Ekimae")
         - Store name typically appears at the top of the receipt
 
         ### C. Total Amount
