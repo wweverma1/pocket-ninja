@@ -103,15 +103,14 @@ def add_or_update_product_details(current_user):
         available_stores = Store.get_all_store_names()
         available_products = Product.get_all_product_names()
         jst_tz = timezone(timedelta(hours=9))
-        current_date_jp = datetime.now(jst_tz)
-        current_date_jp_str = current_date_jp.strftime("%Y-%m-%d")
+        current_date_jp_str = datetime.now(jst_tz).strftime("%Y-%m-%d")
 
         # 2. Prepare Gemini Instruction
         instruction = get_receipt_analysis_instruction(
             date_str=current_date_jp_str,
             target_city=TARGET_CITY,
             available_stores=available_stores,
-            available_products=available_products
+            product_names=available_products
         )
 
         # 3. Call Gemini
