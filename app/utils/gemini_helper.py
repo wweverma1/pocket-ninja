@@ -31,7 +31,7 @@ class ReceiptAnalysis(BaseModel):
     purchase_date: Optional[str] = Field(description="The purchase date found on the receipt in YYYY-MM-DD format. Null if error_code != 0.")
     
     store_name: Optional[str] = Field(description="The canonical store brand name (e.g., 'Lawson'). Null if error_code != 0.")
-    store_identifier: Optional[StoreIdentifier] = Field(description="Specific branch/store location details. Optional.")
+    store_identifier: Optional[StoreIdentifier] = Field(description="Specific branch/store location details. Null if error_code != 0.")
     
     total_amount: Optional[float] = Field(description="The total amount paid. 0.0 if error_code != 0.")
     products: list[Product] = Field(description="List of extracted and matched products. Empty if error_code != 0.")
