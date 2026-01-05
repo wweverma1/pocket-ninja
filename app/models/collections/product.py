@@ -16,6 +16,8 @@ class Product:
         if collection is None:
             return []
 
+        # FIX: Removed explicit exclusions for 'englishName' and 'prices'.
+        # Including 'name': 1 automatically excludes other fields (except _id).
         cursor = collection.find({}, {"name": 1, "_id": 0})
         return [doc['name'] for doc in cursor if 'name' in doc]
 
@@ -32,7 +34,8 @@ class Product:
         # --- Index Creation ---
         try:
             collection.create_index([("name", 1)])
-            collection.create_index([("prices", 1)])
+            # FIX: Removed index on "prices". Indexing a dynamic dictionary is inefficient
+            # and usually not what is intended for price lookups.
         except Exception as e:
             print(f"Error creating product indexes: {e}")
 
