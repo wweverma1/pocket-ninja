@@ -16,7 +16,7 @@ class Product:
         if collection is None:
             return []
 
-        cursor = collection.find({}, {"name": 1, "_id": 0, "englishName": 0, "prices": 0})
+        cursor = collection.find({}, {"name": 1, "_id": 0})
         return [doc['name'] for doc in cursor if 'name' in doc]
 
     @staticmethod
