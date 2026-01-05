@@ -39,6 +39,9 @@ class Store:
             return
 
         try:
+            # Ensure unique index on store name
+            collection.create_index([("name", 1)], unique=True)
+
             # Upsert: If name exists, do nothing. If not, insert it.
             collection.update_one(
                 {"name": store_name},
