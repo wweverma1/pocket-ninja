@@ -56,8 +56,8 @@ def add_or_update_product_details(current_user):
     try:
         if not User.is_upload_allowed(user_id):
             response = Response(
-                message_en="Uploads forbidden due to repeated bad uploads. Please try again in 24 hours.",
-                message_ja="不正なアップロードが続いたため、24時間制限されています。"
+                message_en="Uploads forbidden due to repeated bad uploads. Please try again in some time.",
+                message_ja="不正なアップロードが繰り返されたため、アップロードは禁止されています。しばらくしてからもう一度お試しください。"
             )
             return jsonify(response.to_dict()), 403
 
