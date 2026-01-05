@@ -27,7 +27,7 @@ def get_profile(current_user):
             "username": current_user.get('username'),
             "userAvatarId": current_user.get('userAvatarId', 1),
             "preferredStoreProximity": current_user.get('preferredStoreProximity', 0.5),
-            "joinedAt": current_user.get('joinedAt').isoformat() if current_user.get('joinedAt') else None,
+            "joinedAt": current_user.get('joinedAt'),
             "rankScore": current_user.get('rankScore', 0),
             "lastRankIncrement": current_user.get('lastRankIncrement', 0),
             "totalContributions": current_user.get('totalContributions', 0),
