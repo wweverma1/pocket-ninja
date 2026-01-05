@@ -1,7 +1,7 @@
 import os
 import json
 import textwrap
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
@@ -34,10 +34,10 @@ class ReceiptAnalysis(BaseModel):
     store_identifier: Optional[StoreIdentifier] = Field(description="Specific branch/store location details. Optional.")
     
     total_amount: Optional[float] = Field(description="The total amount paid. 0.0 if error_code != 0.")
-    products: List[Product] = Field(description="List of extracted and matched products. Empty if error_code != 0.")
+    products: list[Product] = Field(description="List of extracted and matched products. Empty if error_code != 0.")
 
 
-def get_receipt_analysis_instruction(date_str, target_city, available_stores: List[str], product_names: List[str]):
+def get_receipt_analysis_instruction(date_str, target_city, available_stores: list[str], product_names: list[str]):
     stores_list_str = json.dumps(available_stores, ensure_ascii=False)
     # Join the first 500 products to avoid hitting context limits if list is huge, 
     # or pass all if feasible. Assuming standard receipt context window handles ~10k tokens easily.
