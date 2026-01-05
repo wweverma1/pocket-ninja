@@ -165,8 +165,12 @@ def add_or_update_product_details(current_user):
         purchase_date_str = analysis_result.get("purchase_date", None)
         store_name = analysis_result.get("store_name", None)
         store_identifier = analysis_result.get("store_identifier", None)
-        total_amount = analysis_result.get("total_amount", 0.0)
-        products = analysis_result.get("products", [])
+        
+        # FIX: Use 'or 0.0' to handle cases where Gemini returns explicit null for optional fields
+        total_amount = analysis_result.get("total_amount") or 0.0
+        
+        # FIX: Safely get products list
+        products = analysis_result.get("products") or []
 
         if not products:
             response = Response(
