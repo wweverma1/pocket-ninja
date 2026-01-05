@@ -30,18 +30,20 @@ class Receipt:
             "userId": ObjectId(user_id),
             "submittedAt": datetime.now(timezone.utc),
             "status": "PENDING",  # Options: PENDING, SUCCESS, FAILED
+            "statusMessage": None,
+            "purchaseDate": None,
             "storeName": None,
-            "totalAmount": 0.0,
-            "result": None,       # Stores full JSON result or error message
-            "productsFound": 0,
-            "productsUpdated": 0
+            "storeIdentifier": None,
+            "totalAmount": None,
+            "productsFound": None,
+            "productsUpdated": None
         }
 
         result = collection.insert_one(document)
         return result.inserted_id
 
     @staticmethod
-    def update_receipt_status(receipt_id, status: str, result_data: dict = None, store_name: str = None, total_amount: float = 0.0, products_count: int = 0, products_updated: int = 0):
+    def update_receipt_status(receipt_id, status: str, status_message: dict, purchase_date: datetime = None, store_name: str = None, store_identifier: dict = None, total_amount: float = None, products_found: list[str] = None, products_updated: int = None):
         """
         Updates the receipt status and details after analysis.
         """
@@ -51,14 +53,16 @@ class Receipt:
 
         update_fields = {
             "status": status,
-            "result": result_data
+            "statusMessage": status_message
         }
 
         # Only update metadata if operation was successful
         if status == "SUCCESS":
+            update_fields["purchaseDate"] = purchase_date
             update_fields["storeName"] = store_name
+            update_fields["storeIdentifier"] = store_identifier
             update_fields["totalAmount"] = total_amount
-            update_fields["productsFound"] = products_count
+            update_fields["productsFound"] = products_found
             update_fields["productsUpdated"] = products_updated
 
         collection.update_one(
@@ -106,7 +110,7 @@ class Receipt:
             print(f"Invalid month format provided: {month}")
             return []
 
-        projection = {"_id": 0, "userId": 0, "result.result": 0}
+        projection = {"_id": 0, "userId": 0}
 
         cursor = collection.find(query, projection).sort("submittedAt", -1)
 
