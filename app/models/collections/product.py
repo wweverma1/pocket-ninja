@@ -16,9 +16,8 @@ class Product:
         if collection is None:
             return []
 
-        # Return _id: 0 so we get a clean list of dicts: [{'name': '...', 'englishName': '...'}]
-        cursor = collection.find({}, {"_id": 0, "name": 1, "englishName": 1})
-        return list(cursor)
+        cursor = collection.find({}, {"name": 1, "_id": 0, "englishName": 0, "prices": 0})
+        return [doc['name'] for doc in cursor if 'name' in doc]
 
     @staticmethod
     def bulk_upsert(purchase_date: datetime, store_name: str, products_data: list):
