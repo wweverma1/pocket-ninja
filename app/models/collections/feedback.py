@@ -25,8 +25,9 @@ class Feedback:
         if collection is None:
             return None
 
-        # Ensure unique index on userId
+        # Ensure unique index on userId and index on rating for aggregation
         collection.create_index([("userId", 1)], unique=True)
+        collection.create_index([("rating", 1)])
 
         now = datetime.now(timezone.utc)
         uid = ObjectId(user_id)
