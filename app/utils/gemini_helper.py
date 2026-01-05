@@ -28,7 +28,7 @@ class ReceiptAnalysis(BaseModel):
     error_code: int = Field(
         description="0 for success. 1: Invalid Image. 2: Edited/Tampered. 3: Date Invalid (>3 days old/future). 4: Date Missing. 5: Location Invalid. 6: Location Missing. 7: Store Name Missing.")
     
-    purchase_date: str = Field(description="The purchase date found on the receipt in YYYY-MM-DD format.")
+    purchase_date: Optional[str] = Field(description="The purchase date found on the receipt in YYYY-MM-DD format. Null if error_code != 0.")
     
     store_name: Optional[str] = Field(description="The canonical store brand name (e.g., 'Lawson'). Null if error_code != 0.")
     store_identifier: Optional[StoreIdentifier] = Field(description="Specific branch/store location details. Optional.")
