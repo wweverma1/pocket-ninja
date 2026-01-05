@@ -10,74 +10,80 @@ class Product:
         return db['products']
 
     @staticmethod
-    def get_all_product_names():
-        """Fetches a list of all available products from the database."""
+    def get_product_catalog():
         collection = Product.get_collection()
         if collection is None:
             return []
 
-        # FIX: Removed explicit exclusions for 'englishName' and 'prices'.
-        # Including 'name': 1 automatically excludes other fields (except _id).
-        cursor = collection.find({}, {"name": 1, "_id": 0})
-        return [doc['name'] for doc in cursor if 'name' in doc]
+        cursor = collection.find({}, {"name": 1, "avgPrice": 1, "_id": 0})
+
+        catalog = []
+        for doc in cursor:
+            avg_price = doc.get('avgPrice')
+
+            catalog.append({
+                "name": doc['name'],
+                "min_match_price": round(0.8 * avg_price),
+                "max_match_price": round(1.2 * avg_price)
+            })
+
+        return catalog
 
     @staticmethod
     def bulk_upsert(purchase_date: datetime, store_name: str, products_data: list):
-        """
-        Updates product prices based on exact name match.
-        Handles 'updated_name' and 'updated_english_name' for existing products.
-        """
         collection = Product.get_collection()
         if collection is None:
             return 0
 
-        # --- Index Creation ---
         try:
             collection.create_index([("name", 1)])
-            # FIX: Removed index on "prices". Indexing a dynamic dictionary is inefficient
-            # and usually not what is intended for price lookups.
         except Exception as e:
             print(f"Error creating product indexes: {e}")
 
         updated_count = 0
 
         for item in products_data:
-            input_name = item.get('name')
-            english_name = item.get('english_name')  # Present only if product doesn't exist
+            name = item.get('name')
+            english_name = item.get('english_name')
             price = item.get('price')
 
-            # Fields specifically for updating existing products
             updated_name = item.get('updated_name')
             updated_english_name = item.get('updated_english_name')
 
-            if not input_name or price is None:
+            if not name or price is None:
                 continue
 
+            price = round(price)
+
             try:
-                # --- STEP 1: Find Canonical Product (Exact Match Only) ---
-                existing_product = collection.find_one({"name": input_name})
+                existing_product = collection.find_one({"name": name})
 
                 if existing_product:
-                    # Case: Product Exists
                     prices = existing_product.get('prices', {})
                     existing_store_data = prices.get(store_name)
 
+                    current_avg = existing_product.get('avgPrice')
+                    store_count = len(prices)
+
                     set_fields = {}
 
-                    # --- Price Update Logic ---
                     should_update_price = False
+
                     if existing_store_data:
-                        # Store exists, check date
-                        last_date = existing_store_data.get('date')
-                        # Update only if the stored date is older than the new purchase_date
-                        if isinstance(last_date, datetime) and last_date < purchase_date:
+                        last_update_date = existing_store_data.get('date')
+
+                        if not isinstance(last_update_date, datetime) or last_update_date < purchase_date:
                             should_update_price = True
-                        elif not isinstance(last_date, datetime):
-                            # If date format is invalid/missing, force update
-                            should_update_price = True
+
+                            price_diff = price - existing_store_data.get('price')
+                            new_avg = round(current_avg + (price_diff / store_count))
+                            set_fields["avgPrice"] = new_avg
+
                     else:
-                        # Store does not exist in prices list
                         should_update_price = True
+
+                        new_avg = round((current_avg * store_count + price) / (store_count + 1))
+                        set_fields["avgPrice"] = new_avg
 
                     if should_update_price:
                         set_fields[f"prices.{store_name}"] = {
@@ -86,16 +92,12 @@ class Product:
                         }
                         updated_count += 1
 
-                    # --- Name/Details Update Logic ---
-                    # Check for updated_name
                     if updated_name and isinstance(updated_name, str) and updated_name.strip():
                         set_fields["name"] = updated_name.strip()
 
-                    # Check for updated_english_name
                     if updated_english_name and isinstance(updated_english_name, str) and updated_english_name.strip():
                         set_fields["englishName"] = updated_english_name.strip()
 
-                    # Apply Updates if any fields are set
                     if set_fields:
                         collection.update_one(
                             {"_id": existing_product["_id"]},
@@ -103,10 +105,10 @@ class Product:
                         )
 
                 else:
-                    # Case: Brand New Product
                     collection.insert_one({
-                        "name": input_name,
-                        "englishName": english_name,  # Use the creation-time english name
+                        "name": name,
+                        "englishName": english_name,
+                        "avgPrice": price,
                         "prices": {
                             store_name: {
                                 "price": price,
@@ -117,6 +119,6 @@ class Product:
                     updated_count += 1
 
             except Exception as e:
-                print(f"Error upserting product {input_name}: {e}")
+                print(f"Error upserting product {name}: {e}")
 
         return updated_count

@@ -111,7 +111,7 @@ class Receipt:
             print(f"Invalid month format provided: {month}")
             return []
 
-        # Projection to exclude unnecessary fields if needed, 
+        # Projection to exclude unnecessary fields if needed,
         # but returning full doc (minus internal IDs) is usually fine for this view
         projection = {"_id": 0, "userId": 0}
 

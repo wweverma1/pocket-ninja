@@ -12,9 +12,7 @@ from app.utils.auth_helper import token_required
 from app.utils.gemini_helper import get_receipt_analysis_instruction, analyze_receipt_with_gemini
 from app.utils.image_helper import optimize_image_stream
 
-# --- Async Task for User Stats ---
-
-TARGET_CITY = os.getenv("TARGET_CITY")
+TARGET_CITY = os.getenv("TARGET_CITY") or "Sapporo"
 
 
 def penalize_user_for_bad_upload(user_id):
@@ -30,15 +28,13 @@ def reward_user_and_update_store(store_name, user_id, contribution_count=None, t
         Store.add_store_if_not_exists(store_name)
 
     try:
-        # Simple gamification: 5 points per product contributed
         rank_increment = contribution_count * 5
-
         User.update_user_stats(
             user_id=user_id,
             rank_increment=rank_increment,
             contribution=contribution_count,
             expenditure=total_expenditure,
-            savings=0.0  # Savings are calculated in the Comparison flow, not Contribution flow
+            savings=0.0
         )
         print(f"Async reward update for user {user_id} complete.")
     except Exception as e:
@@ -49,7 +45,6 @@ def reward_user_and_update_store(store_name, user_id, contribution_count=None, t
 def add_or_update_product_details(current_user):
     """
     PUT /product/details
-    Updated to handle multipart/form-data for faster uploads.
     """
     user_id = str(current_user['_id'])
 
@@ -63,30 +58,15 @@ def add_or_update_product_details(current_user):
 
         receipt_id = Receipt.create_receipt(user_id)
 
-        # 1. Check if the file is present in the request
-        if 'receiptImage' not in request.files:
-            response = Response(
-                message_en="No receipt image provided.",
-                message_ja="領収書の画像が提供されていません。"
-            )
+        # 1. Image Check
+        if 'receiptImage' not in request.files or request.files['receiptImage'].filename == '':
+            response = Response(message_en="No receipt image provided.", message_ja="領収書の画像が提供されていません。")
             if receipt_id:
-                Receipt.update_receipt_status(receipt_id, "FAILED", {
-                    "en": response.message_en,
-                    "ja": response.message_ja
-                })
+                Receipt.update_receipt_status(
+                    receipt_id, "FAILED", {"en": response.message_en, "ja": response.message_ja})
             return jsonify(response.to_dict()), 400
 
-        file_storage = request.files['receiptImage']
-
-        # 2. Validation: Ensure filename exists and is not empty
-        if file_storage.filename == '':
-            # Handle empty selection
-            return jsonify({"message": "No file selected"}), 400
-
-        # 3. Optimization: Pass the file directly (No Base64 decoding needed yet)
-        # We pass the file to our helper function
-        optimized_image_bytes = optimize_image_stream(file_storage)
-
+        optimized_image_bytes = optimize_image_stream(request.files['receiptImage'])
         if not optimized_image_bytes:
             response = Response(
                 message_en="Image processing failed.",
@@ -99,21 +79,26 @@ def add_or_update_product_details(current_user):
                 })
             return jsonify(response.to_dict()), 400
 
-        # 1. Get Context Data
+        # 2. Context Data
         available_stores = Store.get_all_store_names()
-        available_products = Product.get_all_product_names()
-        jst_tz = timezone(timedelta(hours=9))
-        current_date_jp_str = datetime.now(jst_tz).strftime("%Y-%m-%d")
+        product_catalog = Product.get_product_catalog()
 
-        # 2. Prepare Gemini Instruction
+        # Calculate Date Range for Gemini Validation
+        jst_tz = timezone(timedelta(hours=9))
+        now_jst = datetime.now(jst_tz)
+        valid_end_date = now_jst.strftime("%Y-%m-%d")
+        valid_start_date = (now_jst - timedelta(days=3)).strftime("%Y-%m-%d")
+
+        # 3. Gemini Instruction
         instruction = get_receipt_analysis_instruction(
-            date_str=current_date_jp_str,
             target_city=TARGET_CITY,
+            valid_start_date=valid_start_date,
+            valid_end_date=valid_end_date,
             available_stores=available_stores,
-            product_names=available_products
+            product_catalog=product_catalog
         )
 
-        # 3. Call Gemini
+        # 4. Call Gemini
         analysis_result = analyze_receipt_with_gemini(optimized_image_bytes, instruction)
 
         if not analysis_result:
@@ -126,28 +111,21 @@ def add_or_update_product_details(current_user):
                 })
             return jsonify(response.to_dict()), 502
 
-        # 4. Check Gemini Error Codes
+        # 5. Error Code Validation
         error_code = analysis_result.get("error_code")
 
         if error_code != 0:
-            # Penalize user for bad receipt
-            thread = threading.Thread(
-                target=penalize_user_for_bad_upload,
-                args=(user_id,)
-            )
-            thread.start()
+            threading.Thread(target=penalize_user_for_bad_upload, args=(user_id,)).start()
 
             error_map = {
-                1: {"en": "Receipt is not from a supported store.", "ja": "レシートはサポートされているストアのものではありません。"},
+                1: {"en": "Image is not a receipt.", "ja": "画像はレシートではありません。"},
                 2: {"en": "Receipt appears edited.", "ja": "レシートが編集されている可能性があります。"},
                 3: {"en": "Receipt date is too old or invalid.", "ja": "レシートの日付が古すぎるか、無効です。"},
-                4: {"en": "Could not read the date on the receipt.", "ja": "レシートの日付を読み取れませんでした。"},
+                4: {"en": "Receipt is not from a supported store.", "ja": "レシートはサポートされているストアのものではありません。"},
                 5: {"en": "Store is not located in Sapporo.", "ja": "店舗が札幌市外のようです。"},
-                6: {"en": "Could not read store location on the receipt.", "ja": "店舗の場所を特定できませんでした。"},
-                7: {"en": "Could not read store name on the receipt.", "ja": "店舗名を特定できませんでした。"},
             }
 
-            err_obj = error_map.get(error_code, {"en": "Unknown validation error.", "ja": "不明なエラーが発生しました。"})
+            err_obj = error_map.get(error_code, {"en": "Invalid receipt.", "ja": "無効なレシートです。"})
 
             response = Response(
                 message_en=err_obj["en"],
@@ -161,15 +139,11 @@ def add_or_update_product_details(current_user):
                 })
             return jsonify(response.to_dict()), 400
 
-        # 5. Extract Valid Data
-        purchase_date_str = analysis_result.get("purchase_date", None)
-        store_name = analysis_result.get("store_name", None)
-        store_identifier = analysis_result.get("store_identifier", None)
-        
-        # FIX: Use 'or 0.0' to handle cases where Gemini returns explicit null for optional fields
+        # 6. Extract & Fallback Logic
+        purchase_date_str = analysis_result.get("purchase_date")
+        store_name = analysis_result.get("store_name")
+        store_identifier = analysis_result.get("store_identifier")
         total_amount = analysis_result.get("total_amount") or 0.0
-        
-        # FIX: Safely get products list
         products = analysis_result.get("products") or []
 
         if not products:
@@ -188,33 +162,27 @@ def add_or_update_product_details(current_user):
         try:
             purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d")
         except (ValueError, TypeError):
-            # Fallback
             purchase_date = datetime.now() - timedelta(days=3)
 
-        # 6. Update Product Database
+        # 7. Update DB
         updated_count = Product.bulk_upsert(purchase_date, store_name, products)
 
-        # 7. Async Update User Stats
-        thread = threading.Thread(
+        threading.Thread(
             target=reward_user_and_update_store,
             args=(store_name, user_id, updated_count, float(total_amount))
-        )
-        thread.start()
+        ).start()
 
         response = Response(
             errorStatus=0,
             message_en="Receipt processed successfully!",
-            message_ja="レシートの処理が完了しました！",
+            message_ja="レシートの処理が完了しました！"
         )
 
         if receipt_id:
             Receipt.update_receipt_status(
                 receipt_id=receipt_id,
                 status="SUCCESS",
-                status_message={
-                    "en": response.message_en,
-                    "ja": response.message_ja
-                },
+                status_message={"en": response.message_en, "ja": response.message_ja},
                 purchase_date=purchase_date,
                 store_name=store_name,
                 store_identifier=store_identifier,
@@ -227,13 +195,7 @@ def add_or_update_product_details(current_user):
 
     except Exception as e:
         print(f"Product Update Error: {e}")
-
-        response = Response(
-            message_en="Internal server error.",
-            message_ja="内部サーバーエラー。"
-        )
-
-        return jsonify(response.to_dict()), 500
+        return jsonify(Response(message_en="Internal server error.", message_ja="内部サーバーエラー。").to_dict()), 500
 
 
 def get_product_details():
