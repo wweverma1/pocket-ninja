@@ -43,7 +43,7 @@ class Receipt:
         return result.inserted_id
 
     @staticmethod
-    def update_receipt_status(receipt_id, status: str, status_message: dict, purchase_date: datetime = None, store_name: str = None, store_identifier: dict = None, total_amount: float = None, products_found: list[str] = None, products_updated: int = None):
+    def update_receipt_status(receipt_id, status: str, status_message: dict, purchase_date: datetime = None, store_name: str = None, store_identifier: dict = None, total_amount: float = None, products_found: list[dict] = None, products_updated: int = None):
         """
         Updates the receipt status and details after analysis.
         """
