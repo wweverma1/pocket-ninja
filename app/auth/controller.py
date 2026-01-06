@@ -81,20 +81,6 @@ def line_redirect():
     }
     return redirect(f"{AUTH_URL}?{urllib.parse.urlencode(params)}")
 
-
-def yahoo_redirect():
-    client_id = os.getenv("YAHOO_CLIENT_ID")
-    redirect_uri = f"{CLOUD_BASE_URL}/auth/callback/yahoo"
-    AUTH_URL = "https://api.login.yahoo.com/oauth2/request_auth"
-    params = {
-        'response_type': 'code',
-        'client_id': client_id,
-        'redirect_uri': redirect_uri,
-        'scope': 'openid profile email',
-        'state': 'pocket-ninja-yahoo-state'
-    }
-    return redirect(f"{AUTH_URL}?{urllib.parse.urlencode(params)}")
-
 # --- Callback Exchanges ---
 
 
@@ -141,24 +127,5 @@ def line_callback():
         profile = requests.get("https://api.line.me/v2/profile",
                                headers={'Authorization': f"Bearer {token_data['access_token']}"}).json()
         return handle_social_login_logic(profile.get('userId'), 'line', email)
-    except Exception as e:
-        return final_redirect(None, False, None, str(e))
-
-
-def yahoo_callback():
-    code = request.args.get('code')
-    if not code:
-        return final_redirect(None, False, None, "Auth code missing")
-    try:
-        resp = requests.post("https://api.login.yahoo.com/oauth2/get_token", data={
-            'code': code, 'client_id': os.getenv("YAHOO_CLIENT_ID"),
-            'client_secret': os.getenv("YAHOO_CLIENT_SECRET"),
-            'redirect_uri': f"{CLOUD_BASE_URL}/auth/callback/yahoo", 'grant_type': 'authorization_code'
-        }, headers={'Content-Type': 'application/x-www-form-urlencoded'})
-        resp.raise_for_status()
-        token_data = resp.json()
-        user_info = requests.get("https://api.login.yahoo.com/openid/v1/userinfo",
-                                 headers={'Authorization': f"Bearer {token_data['access_token']}"}).json()
-        return handle_social_login_logic(user_info.get('sub'), 'yahoo', user_info.get('email'))
     except Exception as e:
         return final_redirect(None, False, None, str(e))
