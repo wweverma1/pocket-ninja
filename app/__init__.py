@@ -11,8 +11,13 @@ app = Flask(__name__)
 # Allow upto 2 MB uploads
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
+allowed_origins = [
+    "https://pocket-ninja.netlify.app",
+    "http://localhost:3000",
+]
+
 CORS(app, resources={r"/*": {
-    "origins": "*",
+    "origins": allowed_origins,
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"]
 }})
