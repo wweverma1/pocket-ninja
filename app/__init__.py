@@ -9,7 +9,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Allow upto 2 MB uploads
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024
 
 allowed_origins = [
     "https://pocket-ninja.netlify.app",
