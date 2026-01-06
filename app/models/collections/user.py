@@ -316,7 +316,7 @@ class User:
     @staticmethod
     def penalize_user(user_id: str):
         """
-        Increments bad upload count. If >= 5, bans the user for 24 hours.
+        Increments bad upload count. If >= 2, bans the user for 1 hours.
         """
         collection = User.get_collection()
         if collection is None:
@@ -334,8 +334,8 @@ class User:
             return False
 
         # 2. Check Threshold & Apply Ban if needed
-        if updated_user.get("consecutiveBadUploads", 0) >= 5:
-            ban_expiry = datetime.now(timezone.utc) + timedelta(hours=24)
+        if updated_user.get("consecutiveBadUploads", 0) >= 2:
+            ban_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
 
             collection.update_one(
                 {"_id": ObjectId(user_id)},
