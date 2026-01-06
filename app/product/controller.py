@@ -102,8 +102,8 @@ def add_or_update_product_details(current_user):
         analysis_result = analyze_receipt_with_gemini(optimized_image_bytes, instruction)
 
         if not analysis_result:
-            response = Response(message_en="AI Analysis failed. Please try again.",
-                                message_ja="AI分析に失敗しました。もう一度お試しください。")
+            response = Response(message_en="Receipt Analysis failed. Please try again.",
+                                message_ja="レシート分析に失敗しました。もう一度お試しください。")
             if receipt_id:
                 Receipt.update_receipt_status(receipt_id, "FAILED", {
                     "en": response.message_en,
@@ -118,9 +118,9 @@ def add_or_update_product_details(current_user):
             threading.Thread(target=penalize_user_for_bad_upload, args=(user_id,)).start()
 
             error_map = {
-                1: {"en": "Image is not a receipt.", "ja": "画像はレシートではありません。"},
+                1: {"en": "Image is not a shopping receipt.", "ja": "画像はお買い物レシートではありません。"},
                 2: {"en": "Receipt appears edited.", "ja": "レシートが編集されている可能性があります。"},
-                3: {"en": "Receipt purchase date is too old or invalid.", "ja": "レシートの購入日が古すぎるか無効です。"},
+                3: {"en": "Receipt purchase date must be within 3 days.", "ja": "領収書の購入日は3日以内である必要があります。"},
                 4: {"en": "Receipt is not from a supported store.", "ja": "レシートはサポートされているストアのものではありません。"},
                 5: {"en": "Store is not located in Sapporo.", "ja": "店舗が札幌市外のようです。"},
             }
