@@ -13,7 +13,7 @@ app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024
 
 allowed_origins = [
     "https://pocket-ninja.netlify.app",
-    "http://localhost:3000",
+    "http://localhost:5173",
 ]
 
 CORS(app, resources={r"/*": {
