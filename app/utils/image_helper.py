@@ -63,9 +63,9 @@ def upload_receipt_to_drive(image_bytes: bytes, receipt_id: str):
     """
     try:
         # 1. Load Config
-        client_id = os.getenv("GOOGLE_CLIENT_ID")
-        client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-        refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN")
+        client_id = os.getenv("GOOGLE_DRIVE_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_DRIVE_CLIENT_SECRET")
+        refresh_token = os.getenv("GOOGLE_DRIVE_REFRESH_TOKEN")
         folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 
         if not all([client_id, client_secret, refresh_token, folder_id]):
