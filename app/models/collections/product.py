@@ -1,6 +1,6 @@
 from app import db
 from datetime import datetime
-
+from bson.objectid import ObjectId
 
 class Product:
     @staticmethod
@@ -10,115 +10,158 @@ class Product:
         return db['products']
 
     @staticmethod
-    def get_product_catalog():
+    def get_full_catalog():
+        """
+        Returns full catalog including _id for internal mapping.
+        """
         collection = Product.get_collection()
         if collection is None:
             return []
 
-        cursor = collection.find({}, {"name": 1, "avgPrice": 1, "_id": 0})
+        # We need _id to update the specific document later
+        cursor = collection.find({}, {
+            "name": 1, 
+            "englishName": 1, 
+            "category": 1, 
+            "avgPrice": 1, 
+            "aliases": 1
+        })
 
         catalog = []
         for doc in cursor:
-            avg_price = doc.get('avgPrice')
-
             catalog.append({
-                "name": doc['name'],
-                "min_match_price": round(0.8 * avg_price),
-                "max_match_price": round(1.2 * avg_price)
+                "_id": doc['_id'], # Critical for updates
+                "name": doc.get('name', ''),
+                "english_name": doc.get('englishName', ''),
+                "category": doc.get('category', 'other'),
+                "avg_price": doc.get('avgPrice', 0),
+                "aliases": doc.get('aliases', [])
             })
 
         return catalog
 
     @staticmethod
-    def bulk_upsert(purchase_date: datetime, store_name: str, products_data: list):
+    def apply_llm_product_decisions(decisions: list, catalog_context: list, receipt_products: list, store_name: str, purchase_date: datetime):
+        """
+        Executes the deduplication and enrichment logic returned by Gemini.
+        """
         collection = Product.get_collection()
         if collection is None:
-            return 0
+            return
 
-        try:
-            collection.create_index([("name", 1)])
-        except Exception as e:
-            print(f"Error creating product indexes: {e}")
+        # Helper to map index back to DB Object ID
+        # catalog_context[i] corresponds to index i+1
+        def get_db_product_by_index(idx):
+            if 0 <= idx - 1 < len(catalog_context):
+                return catalog_context[idx - 1]
+            return None
 
-        updated_count = 0
-
-        for item in products_data:
-            name = item.get('name')
-            english_name = item.get('english_name')
-            price = item.get('price')
-
-            updated_name = item.get('updated_name')
-            updated_english_name = item.get('updated_english_name')
-
-            if not name or price is None:
-                continue
-
-            price = round(price)
-
+        for i, decision in enumerate(decisions):
             try:
-                existing_product = collection.find_one({"name": name})
+                # Receipt products and decisions should be parallel arrays (ordered)
+                if i >= len(receipt_products):
+                    break
+                
+                receipt_item = receipt_products[i]
+                price = receipt_item.get('price', 0)
+                
+                is_match = decision.get('is_match')
+                enrichment_action = decision.get('enrichment_action')
+                canonical_ja = decision.get('canonical_name_ja')
+                canonical_en = decision.get('canonical_name_en')
+                matched_index = decision.get('matched_product_index')
 
-                if existing_product:
-                    prices = existing_product.get('prices', {})
-                    existing_store_data = prices.get(store_name)
-
-                    current_avg = existing_product.get('avgPrice')
-                    store_count = len(prices)
-
-                    set_fields = {}
-
-                    should_update_price = False
-
-                    if existing_store_data:
-                        last_update_date = existing_store_data.get('date')
-
-                        if not isinstance(last_update_date, datetime) or last_update_date < purchase_date:
-                            should_update_price = True
-
-                            price_diff = price - existing_store_data.get('price')
-                            new_avg = round(current_avg + (price_diff / store_count))
-                            set_fields["avgPrice"] = new_avg
-
-                    else:
-                        should_update_price = True
-
-                        new_avg = round((current_avg * store_count + price) / (store_count + 1))
-                        set_fields["avgPrice"] = new_avg
-
-                    if should_update_price:
-                        set_fields[f"prices.{store_name}"] = {
-                            "price": price,
-                            "date": purchase_date
-                        }
-                        updated_count += 1
-
-                    if updated_name and isinstance(updated_name, str) and updated_name.strip():
-                        set_fields["name"] = updated_name.strip()
-
-                    if updated_english_name and isinstance(updated_english_name, str) and updated_english_name.strip():
-                        set_fields["englishName"] = updated_english_name.strip()
-
-                    if set_fields:
-                        collection.update_one(
-                            {"_id": existing_product["_id"]},
-                            {"$set": set_fields}
-                        )
-
-                else:
-                    collection.insert_one({
-                        "name": name,
-                        "englishName": english_name,
+                # --- CASE 1: NEW PRODUCT ---
+                if not is_match or matched_index is None:
+                    # Insert New
+                    new_doc = {
+                        "name": canonical_ja,
+                        "englishName": canonical_en,
+                        "category": receipt_item.get('category', 'other'),
                         "avgPrice": price,
+                        "aliases": [],
                         "prices": {
                             store_name: {
                                 "price": price,
                                 "date": purchase_date
                             }
+                        },
+                        "lastUpdated": datetime.now()
+                    }
+                    collection.insert_one(new_doc)
+                    print(f"Inserted NEW: {canonical_ja}")
+                    continue
+
+                # --- CASE 2: MATCH EXISTING ---
+                existing_product_data = get_db_product_by_index(matched_index)
+                if not existing_product_data:
+                    print(f"Error: Invalid match index {matched_index}")
+                    continue
+                
+                product_id = existing_product_data['_id']
+                
+                update_ops = {
+                    "$set": {"lastUpdated": datetime.now()},
+                    "$addToSet": {}
+                }
+
+                # A. Handle Enrichment
+                if enrichment_action == "update_name":
+                    update_ops["$set"]["name"] = canonical_ja
+                    update_ops["$set"]["englishName"] = canonical_en
+                
+                elif enrichment_action == "add_alias":
+                    # Add the raw receipt name as an alias if it differs from canonical
+                    raw_name = receipt_item.get('name')
+                    if raw_name and raw_name != existing_product_data['name']:
+                        update_ops["$addToSet"]["aliases"] = raw_name
+                
+                elif enrichment_action == "merge_information":
+                    # Update names if the new canonical is "better" (handled by LLM choice)
+                    update_ops["$set"]["name"] = canonical_ja
+                    if canonical_en:
+                        update_ops["$set"]["englishName"] = canonical_en
+
+                # B. Update Price Logic (Standard Avg Calc)
+                # We need to fetch the fresh document to calculate avg accurately 
+                # (context might be stale if multiple updates happen in one batch)
+                fresh_doc = collection.find_one({"_id": product_id})
+                if fresh_doc:
+                    current_avg = fresh_doc.get('avgPrice', price)
+                    prices_dict = fresh_doc.get('prices', {})
+                    store_entry = prices_dict.get(store_name)
+                    store_count = len(prices_dict)
+
+                    should_update_price = False
+                    new_avg = current_avg
+
+                    if store_entry:
+                        # Existing store: Update only if newer
+                        last_date = store_entry.get('date')
+                        if not isinstance(last_date, datetime) or last_date < purchase_date:
+                            should_update_price = True
+                            # Avg update approximation
+                            price_diff = price - store_entry.get('price')
+                            safe_count = store_count if store_count > 0 else 1
+                            new_avg = round(current_avg + (price_diff / safe_count))
+                    else:
+                        # New store for this product
+                        should_update_price = True
+                        new_avg = round((current_avg * store_count + price) / (store_count + 1))
+                    
+                    if should_update_price:
+                        update_ops["$set"]["avgPrice"] = new_avg
+                        update_ops["$set"][f"prices.{store_name}"] = {
+                            "price": price,
+                            "date": purchase_date
                         }
-                    })
-                    updated_count += 1
+
+                # Cleanup empty operators
+                if not update_ops["$addToSet"]:
+                    del update_ops["$addToSet"]
+
+                collection.update_one({"_id": product_id}, update_ops)
+                print(f"Updated {product_id} with action {enrichment_action}")
 
             except Exception as e:
-                print(f"Error upserting product {name}: {e}")
-
-        return updated_count
+                print(f"Error applying decision for index {i}: {e}")

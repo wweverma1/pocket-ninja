@@ -61,3 +61,12 @@ from app.utils.app_functions import (
     before_request,
     after_request,
 )
+
+# --- Start Background Worker ---
+from app.product.worker import start_product_sync_thread
+
+try:
+    if db is not None:
+        start_product_sync_thread(app)
+except Exception as e:
+    print(f"Failed to start background worker: {e}")

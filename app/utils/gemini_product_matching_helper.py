@@ -178,8 +178,7 @@ def get_matching_instruction():
 
 def match_products_with_gemini(
     existing_products: list[dict],
-    receipt_products: list[dict],
-    temperature: float = 0.1
+    receipt_products: list[dict]
 ) -> Optional[dict]:
     """
     Matches receipt products against existing database products using Gemini.
@@ -250,7 +249,7 @@ def match_products_with_gemini(
             config={
                 "response_mime_type": "application/json",
                 "response_schema": ProductMatchingResult,
-                "temperature": temperature,
+                "temperature": 0.1,
             }
         )
 
