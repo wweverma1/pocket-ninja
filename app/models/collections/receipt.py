@@ -37,6 +37,7 @@ class Receipt:
             "storeIdentifier": None,
             "totalAmount": None,
             "productsFound": None,
+            "productsAdded": "FALSE"
         }
 
         result = collection.insert_one(document)

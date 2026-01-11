@@ -45,12 +45,14 @@ class Product(BaseModel):
 class ReceiptAnalysis(BaseModel):
     error_code: int = Field(
         description="0: Success. 1: Not a Receipt. 2: Edited/Tampered. 3: Date Out of Range. 4: Unsupported Store Type. 5: Outside Target City.")
-    
+
     purchase_date: Optional[str] = Field(description="Purchase date in YYYY-MM-DD format. Null if not found.")
-    
-    store_name: Optional[str] = Field(description="Store brand name in English (e.g., 'Lawson', 'Seven-Eleven', 'FamilyMart', 'AEON'). Null if error.")
-    store_identifier: Optional[StoreIdentifier] = Field(description="Specific branch location details (excluding store brand name). Null if error.")
-    
+
+    store_name: Optional[str] = Field(
+        description="Store brand name in English (e.g., 'Lawson', 'Seven-Eleven', 'FamilyMart', 'AEON'). Null if error.")
+    store_identifier: Optional[StoreIdentifier] = Field(
+        description="Specific branch location details (excluding store brand name). Null if error.")
+
     total_amount: Optional[float] = Field(description="Final total amount paid including tax. Null if error.")
     products: list[Product] = Field(description="List of extracted products. Empty list if error.")
 
@@ -118,11 +120,11 @@ def analyze_receipt_with_gemini(image_bytes: bytes, target_city: str, valid_star
     Analyzes receipt using Gemini 2.5 Flash with structured output.
     Returns parsed JSON matching ReceiptAnalysis schema.
     """
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_RECEIPT_ANALYSIS_API_KEY")
     if not api_key:
-        print("Error: GEMINI_API_KEY is not set.")
+        print("Error: GEMINI_RECEIPT_ANALYSIS_API_KEY is not set.")
         return None
-    
+
     instruction = get_receipt_analysis_instruction(target_city, valid_start_date, valid_end_date, available_stores)
 
     try:
@@ -144,5 +146,5 @@ def analyze_receipt_with_gemini(image_bytes: bytes, target_city: str, valid_star
         )
         return json.loads(response.text)
     except Exception as e:
-        print(f"Gemini Analysis Error: {e}")
+        print(f"Gemini Receipt Analysis Error: {e}")
         return None

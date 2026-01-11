@@ -9,7 +9,7 @@ from app.models.collections.store import Store
 from app.models.collections.product import Product
 from app.models.collections.receipt import Receipt
 from app.utils.auth_helper import token_required
-from app.utils.gemini_helper import analyze_receipt_with_gemini
+from app.utils.gemini_receipt_analysis_helper import analyze_receipt_with_gemini
 from app.utils.image_helper import optimize_image_stream, upload_receipt_to_drive
 
 TARGET_CITY = os.getenv("TARGET_CITY")
@@ -94,7 +94,8 @@ def add_or_update_product_details(current_user):
         valid_start_date = (now_jst - timedelta(days=3)).strftime("%Y-%m-%d")
 
         # 4. Call Gemini
-        analysis_result = analyze_receipt_with_gemini(optimized_image_bytes, TARGET_CITY, valid_start_date, valid_end_date, available_stores)
+        analysis_result = analyze_receipt_with_gemini(
+            optimized_image_bytes, TARGET_CITY, valid_start_date, valid_end_date, available_stores)
 
         if not analysis_result:
             response = Response(message_en="Receipt Analysis failed. Please try again.",

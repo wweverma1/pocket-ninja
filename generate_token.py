@@ -8,6 +8,7 @@ CLIENT_SECRET = "YOUR_CLIENT_SECRET_HERE"
 # 2. Scopes required for uploading to Drive
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
+
 def main():
     if CLIENT_ID == "YOUR_CLIENT_ID_HERE":
         print("Please edit the script and add your Client ID and Secret.")
@@ -35,6 +36,7 @@ def main():
     print(creds.refresh_token)
     print("\n" + "="*50)
     print("Add this to your .env file as GOOGLE_REFRESH_TOKEN")
+
 
 if __name__ == '__main__':
     main()
