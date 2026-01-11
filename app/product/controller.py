@@ -12,7 +12,7 @@ from app.utils.auth_helper import token_required
 from app.utils.gemini_helper import get_receipt_analysis_instruction, analyze_receipt_with_gemini
 from app.utils.image_helper import optimize_image_stream
 
-TARGET_CITY = os.getenv("TARGET_CITY") or "Sapporo"
+TARGET_CITY = os.getenv("TARGET_CITY")
 
 
 def penalize_user_for_bad_upload(user_id):
@@ -81,7 +81,7 @@ def add_or_update_product_details(current_user):
 
         # 2. Context Data
         available_stores = Store.get_all_store_names()
-        product_catalog = Product.get_product_catalog()
+        # product_catalog = Product.get_product_catalog()
 
         # Calculate Date Range for Gemini Validation
         jst_tz = timezone(timedelta(hours=9))
@@ -89,17 +89,8 @@ def add_or_update_product_details(current_user):
         valid_end_date = now_jst.strftime("%Y-%m-%d")
         valid_start_date = (now_jst - timedelta(days=3)).strftime("%Y-%m-%d")
 
-        # 3. Gemini Instruction
-        instruction = get_receipt_analysis_instruction(
-            target_city=TARGET_CITY,
-            valid_start_date=valid_start_date,
-            valid_end_date=valid_end_date,
-            available_stores=available_stores,
-            product_catalog=product_catalog
-        )
-
         # 4. Call Gemini
-        analysis_result = analyze_receipt_with_gemini(optimized_image_bytes, instruction)
+        analysis_result = analyze_receipt_with_gemini(optimized_image_bytes, TARGET_CITY, valid_start_date, valid_end_date, available_stores)
 
         if not analysis_result:
             response = Response(message_en="Receipt Analysis failed. Please try again.",
@@ -118,11 +109,11 @@ def add_or_update_product_details(current_user):
             threading.Thread(target=penalize_user_for_bad_upload, args=(user_id,)).start()
 
             error_map = {
-                1: {"en": "Image is not a shopping receipt.", "ja": "画像はお買い物レシートではありません。"},
-                2: {"en": "Receipt appears edited.", "ja": "レシートが編集されている可能性があります。"},
-                3: {"en": "Receipt purchase date must be within 3 days.", "ja": "領収書の購入日は3日以内である必要があります。"},
-                4: {"en": "Receipt is not from a supported store.", "ja": "レシートはサポートされているストアのものではありません。"},
-                5: {"en": "Store is not located in Sapporo.", "ja": "店舗が札幌市外のようです。"},
+                1: {"en": "This image does not appear to be a receipt. Please upload a valid receipt.", "ja": "この画像は領収書ではないようです。有効な領収書をアップロードしてください。"},
+                2: {"en": "This receipt appears to be edited or tampered with. Please upload an original receipt.", "ja": "この領収書は編集または改ざんされているようです。元の領収書をアップロードしてください。"},
+                3: {"en": "This receipt is more than 3 days old. Please upload receipts from recent purchases.", "ja": "このレシートは3日以上前のものです。最近の購入のレシートをアップロードしてください。"},
+                4: {"en": "This store type is not supported. We only accept receipts from convenience stores and supermarkets.", "ja": "この店舗タイプはサポートされていません。コンビニエンスストアまたはスーパーマーケットのレシートのみ受け付けております。"},
+                5: {"en": "This store is not located in Sapporo.", "ja": "この店舗は札幌にはありません。"},
             }
 
             err_obj = error_map.get(error_code, {"en": "Invalid receipt.", "ja": "無効なレシートです。"})
@@ -147,6 +138,8 @@ def add_or_update_product_details(current_user):
         products = analysis_result.get("products") or []
 
         if not products:
+            threading.Thread(target=penalize_user_for_bad_upload, args=(user_id,)).start()
+
             response = Response(
                 message_en="No products found in receipt.",
                 message_ja="レシートに商品が見つかりませんでした。"
@@ -159,18 +152,18 @@ def add_or_update_product_details(current_user):
                 })
             return jsonify(response.to_dict()), 400
 
+        threading.Thread(
+            target=reward_user_and_update_store,
+            args=(store_name, user_id, len(products), float(total_amount))
+        ).start()
+
         try:
             purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d")
         except (ValueError, TypeError):
             purchase_date = datetime.now() - timedelta(days=3)
 
         # 7. Update DB
-        updated_count = Product.bulk_upsert(purchase_date, store_name, products)
-
-        threading.Thread(
-            target=reward_user_and_update_store,
-            args=(store_name, user_id, updated_count, float(total_amount))
-        ).start()
+        # updated_count = Product.bulk_upsert(purchase_date, store_name, products)
 
         response = Response(
             errorStatus=0,
@@ -187,8 +180,7 @@ def add_or_update_product_details(current_user):
                 store_name=store_name,
                 store_identifier=store_identifier,
                 total_amount=total_amount,
-                products_found=products,
-                products_updated=updated_count
+                products_found=products
             )
 
         return jsonify(response.to_dict()), 200

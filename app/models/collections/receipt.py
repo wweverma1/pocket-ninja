@@ -37,14 +37,13 @@ class Receipt:
             "storeIdentifier": None,
             "totalAmount": None,
             "productsFound": None,
-            "productsUpdated": None
         }
 
         result = collection.insert_one(document)
         return result.inserted_id
 
     @staticmethod
-    def update_receipt_status(receipt_id, status: str, status_message: dict, purchase_date: datetime = None, store_name: str = None, store_identifier: dict = None, total_amount: float = None, products_found: list[dict] = None, products_updated: int = None):
+    def update_receipt_status(receipt_id, status: str, status_message: dict, purchase_date: datetime = None, store_name: str = None, store_identifier: dict = None, total_amount: float = None, products_found: list[dict] = None):
         """
         Updates the receipt status and details after analysis.
         """
@@ -64,7 +63,6 @@ class Receipt:
             update_fields["storeIdentifier"] = store_identifier
             update_fields["totalAmount"] = total_amount
             update_fields["productsFound"] = products_found
-            update_fields["productsUpdated"] = products_updated
 
         collection.update_one(
             {"_id": receipt_id, "status": "PENDING"},
