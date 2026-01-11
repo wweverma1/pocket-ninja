@@ -27,7 +27,7 @@ def main():
     )
 
     # Run local server to listen for the callback
-    creds = flow.run_local_server(port=8080)
+    creds = flow.run_local_server(port=5000)
 
     print("\n" + "="*50)
     print("SUCCESS! Here is your Refresh Token:")
