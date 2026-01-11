@@ -9,8 +9,8 @@ from app.models.collections.store import Store
 from app.models.collections.product import Product
 from app.models.collections.receipt import Receipt
 from app.utils.auth_helper import token_required
-from app.utils.gemini_helper import get_receipt_analysis_instruction, analyze_receipt_with_gemini
-from app.utils.image_helper import optimize_image_stream
+from app.utils.gemini_helper import analyze_receipt_with_gemini
+from app.utils.image_helper import optimize_image_stream, upload_receipt_to_drive
 
 TARGET_CITY = os.getenv("TARGET_CITY")
 
@@ -78,6 +78,10 @@ def add_or_update_product_details(current_user):
                     "ja": response.message_ja
                 })
             return jsonify(response.to_dict()), 400
+
+        # --- Async Drive Upload ---
+        # We start this thread immediately after validation so it runs in parallel with Gemini analysis
+        threading.Thread(target=upload_receipt_to_drive, args=(optimized_image_bytes, str(receipt_id))).start()
 
         # 2. Context Data
         available_stores = Store.get_all_store_names()
