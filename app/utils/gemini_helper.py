@@ -2,22 +2,44 @@ import os
 import json
 import textwrap
 from typing import Optional
+from enum import Enum
 from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 
 
+# --- Product Category Enum ---
+
+class ProductCategory(str, Enum):
+    BEVERAGES = "beverages"
+    ALCOHOL = "alcohol"
+    SNACKS = "snacks"
+    FRESH_PRODUCE = "fresh produce"
+    DAIRY = "dairy"
+    MEAT_SEAFOOD = "meat seafood"
+    FROZEN_FOODS = "frozen foods"
+    BAKERY = "bakery"
+    HOUSEHOLD_GOODS = "household goods"
+    TOBACCO = "tobacco"
+    PREPARED_FOODS = "prepared foods"
+    CONDIMENTS = "condiments"
+    GRAINS_STAPLES = "grains staples"
+    HEALTH_BEAUTY = "health beauty"
+    OTHER = "other"
+
+
 # --- Pydantic Models ---
 
 class StoreIdentifier(BaseModel):
-    ja: str = Field(description="Japanese location/branch name only, excluding store brand (e.g., '北8条店', '札幌駅前店')")
+    ja: str = Field(description="Japanese branch name only, excluding store brand (e.g., '北8条店', '札幌駅前店')")
     en: str = Field(description="English romanization of branch location only (e.g., 'Kita 8-jo', 'Sapporo Ekimae')")
 
 
 class Product(BaseModel):
-    name: str = Field(description="Product name in Japanese as shown on receipt. Clean OCR errors and expand obvious truncations (e.g., 'コカコー...' → 'コカコーラ'). Remove noise characters.")
-    english_name: str = Field(description="English translation or romanization of the product name.")
-    price: float = Field(description="Price per single unit (tax-included). If multiple quantity shown, divide price by quantity to get unit price.")
+    name: str = Field(description="Japanese product name from receipt. Clean OCR errors and expand truncations.")
+    english_name: str = Field(description="English translation or romanization")
+    category: ProductCategory = Field(description="Product category from predefined list")
+    price: float = Field(description="Unit price (tax-included). If multiple quantity, divide by quantity.")
 
 
 class ReceiptAnalysis(BaseModel):
@@ -35,88 +57,58 @@ class ReceiptAnalysis(BaseModel):
 
 def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, valid_end_date: str, available_stores: list[str]):
     """
-    Generates optimized prompt for Gemini using SI → RI → QI structure.
-    Based on Google's best practices for accuracy and consistency.
+    Generates optimized prompt for Gemini.
+    Shortened for faster processing while maintaining accuracy.
     """
     stores_list_str = ", ".join(available_stores)
-    
+
     receipt_analysis_instruction = textwrap.dedent(f"""
-        You are a receipt data extraction specialist for Japanese retail stores.
-        
-        ## Your Role
-        
-        Extract structured data from receipt images with high accuracy. Your primary task is to use your vision capabilities to read the receipt directly. Prioritize what you see in the image over any OCR artifacts.
-        
+        Extract structured data from Japanese receipt images.
+
         ## Validation Context
-        
         - **Target City**: {target_city}
-        - **Valid Date Range**: {valid_start_date} to {valid_end_date} (inclusive)
-        - **Supported Store Types**: Convenience stores (konbini) and supermarkets ONLY
-        - **Known Store Brands**: {stores_list_str}
-        
-        ## Task: Validate and Extract Receipt Data
-        
-        ### Step 1: Receipt Validation
-        
-        Examine the image carefully and assign the appropriate error_code:
-        
-        - **0** = Valid receipt from supported store type → proceed to extraction
-        - **1** = Not a receipt (invoice, ticket, menu, document, blank/unreadable image)
-        - **2** = Shows signs of digital editing, manipulation, or tampering
-        - **3** = Purchase date falls outside {valid_start_date} to {valid_end_date}
-        - **4** = Unsupported store type (clothing stores, electronics retailers, restaurants, cafes, bars, drug stores)
-        - **5** = Store location is clearly outside {target_city}
-        
-        **Important**: If error_code is NOT 0, stop immediately. Return the response with null values for all other fields and an empty products list.
-        
-        ### Step 2: Data Extraction (Only if error_code = 0)
-        
-        #### A. Purchase Date
-        - Extract the purchase date and convert to **YYYY-MM-DD** format
-        - Common Japanese formats: "YYYY年MM月DD日", "YY/MM/DD", "YYYY.MM.DD"
-        - Typically located near top or bottom of receipt
-        
-        #### B. Store Identification
-        - **store_name**: Extract store brand name in **English** (e.g., "Lawson", "Seven-Eleven", "FamilyMart", "AEON", "MaxValu")
-        - **store_identifier**: Extract branch location details ONLY (exclude store brand name)
-          - **ja**: Branch location in Japanese (e.g., "北8条店", "駅前店", "札幌中央店")
-          - **en**: Romanized English version (e.g., "Kita 8-jo", "Ekimae", "Sapporo Chuo")
-        
-        #### C. Total Amount
-        - Extract the **final total amount paid** (税込 or 合計)
-        - This is the amount after tax, usually at the bottom
-        - Ignore subtotals (小計 or 商品合計)
-        
-        #### D. Product Extraction
-        
-        For each product line item:
-        
-        1. **Read product name**: Japanese receipts often truncate names (e.g., "コカコー..." for "コカコーラ")
-           - Extract visible text and infer full name when truncation is obvious
-           - Clean OCR errors and noise characters
-           - Remove extra spaces or ellipsis ("...")
-        
-        2. **Handle quantities**: Watch for quantity indicators like "×2", "2個", "2本"
-           - If multiple quantity is shown, extract the **unit price** (divide line total by quantity if needed)
-           - Report price for single unit, not total for multiple units
-        
-        3. **Price extraction**: Use tax-included price (税込) if both prices shown
-           - Price is typically right-aligned on receipt
-        
-        4. **Output format**:
-           - **name**: Cleaned Japanese product name
-           - **english_name**: English translation or romanization
-           - **price**: Single unit price (tax-included)
-        
-        **Extraction Rules**:
-        - Extract ONLY purchasable products (ignore tax lines, discounts, payment methods)
-        - If same product appears multiple times, list each occurrence separately with unit price
-        - Do not invent products that aren't clearly visible
-        - Maintain the order products appear on the receipt
-        
-        ## Output Requirements
-        
-        Return valid JSON matching the provided schema exactly. Preserve all Japanese characters properly. Ensure all required fields are present with appropriate null values when error_code is not 0.
+        - **Valid Date Range**: {valid_start_date} to {valid_end_date}
+        - **Supported Stores**: Convenience stores (konbini) and supermarkets ONLY
+        - **Known Brands**: {stores_list_str}
+
+        ## Task: Validate and Extract
+
+        ### Step 1: Validation (Assign error_code)
+        - **0** = Valid receipt → proceed to extraction
+        - **1** = Not a receipt (invoice, ticket, menu, blank/unreadable)
+        - **2** = Shows digital editing or tampering
+        - **3** = Date outside valid range
+        - **4** = Unsupported store type (clothing, electronics, restaurants, cafes, drug stores)
+        - **5** = Location outside {target_city}
+
+        **If error_code ≠ 0**: Stop. Return null values and empty products list.
+
+        ### Step 2: Extract Data (Only if error_code = 0)
+
+        **A. Purchase Date**
+        - Format: YYYY-MM-DD
+        - Common formats: "YYYY年MM月DD日", "YY/MM/DD", "YYYY.MM.DD"
+
+        **B. Store Identification**
+        - **store_name**: English brand name (e.g., "Lawson", "Seven-Eleven", "AEON")
+        - **store_identifier**: Branch location only
+          - **ja**: Japanese branch name (e.g., "北8条店")
+          - **en**: Romanized English (e.g., "Kita 8-jo")
+
+        **C. Total Amount**
+        - Extract final total (税込/合計), not subtotal (小計)
+
+        **D. Products**
+        For each product:
+        - **name**: Japanese name (clean OCR errors, expand truncations like "コカコー..." → "コカコーラ")
+        - **english_name**: English translation/romanization
+        - **category**: Classify into: beverages, alcohol, snacks, fresh_produce, dairy, meat_seafood, frozen_foods, bakery, household_goods, tobacco, prepared_foods, condiments, grains_staples, health_beauty, other
+        - **price**: Unit price (tax-included). If quantity shown (×2, 2個), divide total by quantity
+
+        **Rules**:
+        - Extract only purchasable products (ignore tax lines, discounts, payment methods)
+        - List each occurrence separately if same product appears multiple times
+        - Maintain receipt order
     """)
     return receipt_analysis_instruction
 
@@ -147,7 +139,7 @@ def analyze_receipt_with_gemini(image_bytes: bytes, target_city: str, valid_star
             config={
                 "response_mime_type": "application/json",
                 "response_schema": ReceiptAnalysis,
-                "temperature": 0.1,  # Very low for maximum consistency and accuracy
+                "temperature": 0.1,
             }
         )
         return json.loads(response.text)
