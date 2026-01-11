@@ -68,7 +68,7 @@ def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, va
         ## Validation Context
         - **Target City**: {target_city}
         - **Valid Date Range**: {valid_start_date} to {valid_end_date}
-        - **Supported Stores**: Convenience stores (konbini) and supermarkets ONLY
+        - **Supported Stores**: Convenience stores (konbini), supermarkets and drugstores ONLY
         - **Known Brands**: {stores_list_str}
 
         ## Task: Validate and Extract
@@ -78,7 +78,7 @@ def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, va
         - **1** = Not a receipt (invoice, ticket, menu, blank/unreadable)
         - **2** = Shows digital editing or tampering
         - **3** = Date outside valid range
-        - **4** = Unsupported store type (clothing, electronics, restaurants, cafes, drug stores)
+        - **4** = Unsupported store type (clothing, electronics, restaurants, cafes, etc.)
         - **5** = Location outside {target_city}
 
         **If error_code ≠ 0**: Stop. Return null values and empty products list.
@@ -102,7 +102,7 @@ def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, va
         For each product:
         - **name**: Japanese name (clean OCR errors, expand truncations like "コカコー..." → "コカコーラ")
         - **english_name**: English translation/romanization
-        - **category**: Classify into: beverages, alcohol, snacks, fresh_produce, dairy, meat_seafood, frozen_foods, bakery, household_goods, tobacco, prepared_foods, condiments, grains_staples, health_beauty, other
+        - **category**: Classify into: beverages, alcohol, snacks, fresh produce, dairy, meat seafood, frozen foods, bakery, household goods, tobacco, prepared foods, condiments, grains staples, health beauty, other
         - **price**: Unit price (tax-included). If quantity shown (×2, 2個), divide total by quantity
 
         **Rules**:
