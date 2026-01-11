@@ -41,7 +41,7 @@ class Product:
         return catalog
 
     @staticmethod
-    def apply_llm_product_decisions(decisions: list, catalog_context: list, receipt_products: list, store_name: str, purchase_date: datetime):
+    def add_products(decisions: list, catalog_context: list, receipt_products: list, store_name: str, purchase_date: datetime):
         """
         Executes the deduplication and enrichment logic returned by Gemini.
         """

@@ -85,7 +85,6 @@ def add_or_update_product_details(current_user):
 
         # 2. Context Data
         available_stores = Store.get_all_store_names()
-        # product_catalog = Product.get_product_catalog()
 
         # Calculate Date Range for Gemini Validation
         jst_tz = timezone(timedelta(hours=9))
@@ -165,10 +164,7 @@ def add_or_update_product_details(current_user):
         try:
             purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d")
         except (ValueError, TypeError):
-            purchase_date = datetime.now() - timedelta(days=3)
-
-        # 7. Update DB
-        # updated_count = Product.bulk_upsert(purchase_date, store_name, products)
+            purchase_date = datetime.now(jst_tz) - timedelta(days=3)
 
         response = Response(
             errorStatus=0,
