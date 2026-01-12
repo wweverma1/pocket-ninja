@@ -123,6 +123,7 @@ class Receipt:
 
             query = {
                 "userId": ObjectId(user_id),
+                "status": "SUCCESS",
                 "submittedAt": {
                     "$gte": dt_start,
                     "$lt": dt_end
@@ -132,7 +133,7 @@ class Receipt:
             print(f"Invalid month format provided: {month}")
             return []
 
-        projection = {"_id": 0, "userId": 0}
-        cursor = collection.find(query, projection).sort("submittedAt", -1)
+        projection = {"_id": 0, "userId": 0, "submittedAt": 0, "processed": 0, "matchingResult": 0}
+        cursor = collection.find(query, projection).sort("purchaseDate", -1)
 
         return list(cursor)
