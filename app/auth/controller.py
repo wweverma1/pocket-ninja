@@ -2,8 +2,7 @@ import os
 import requests
 import urllib.parse
 import jwt
-from flask import request, redirect, jsonify
-from app.models.response import Response
+from flask import request, redirect
 from app.models.collections.user import User
 from app.utils.auth_helper import encode_auth_token
 from app.utils.username_generator import get_random_username
@@ -13,15 +12,18 @@ FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 
 def final_redirect(token: str, is_new_user: bool, username: str = None, error_message: str = None):
-    """Constructs the redirect URL with all necessary onboarding flags."""
     if error_message:
         return redirect(f"{FRONTEND_URL}/auth/failure?error={urllib.parse.quote(error_message)}")
 
-    return redirect(f"{FRONTEND_URL}/auth/success?token={token}&username={urllib.parse.quote(username)}&is_new_user={str(is_new_user).lower()}")
+    return redirect(
+        f"{FRONTEND_URL}/auth/success?"
+        f"token={token}&"
+        f"username={urllib.parse.quote(username)}&"
+        f"is_new_user={str(is_new_user).lower()}"
+    )
 
 
 def handle_social_login_logic(social_id: str, provider: str, email: str = None):
-    """Centralized logic to determine if user is new or existing."""
     if not social_id:
         return final_redirect(None, False, None, "Failed to get unique social ID")
 
@@ -51,8 +53,6 @@ def handle_social_login_logic(social_id: str, provider: str, email: str = None):
     token = encode_auth_token(user_id_str)
     return final_redirect(token, is_new_user, username)
 
-# --- Initiation Redirects ---
-
 
 def google_redirect():
     client_id = os.getenv("GOOGLE_CLIENT_ID")
@@ -80,8 +80,6 @@ def line_redirect():
         'state': 'pocket-ninja-line-state'
     }
     return redirect(f"{AUTH_URL}?{urllib.parse.urlencode(params)}")
-
-# --- Callback Exchanges ---
 
 
 def google_callback():
@@ -116,11 +114,9 @@ def line_callback():
         resp.raise_for_status()
         token_data = resp.json()
 
-        # Extract email from ID Token
         email = None
         id_token = token_data.get('id_token')
         if id_token:
-            # Decode without verification since we received it directly from the token endpoint
             decoded = jwt.decode(id_token, options={"verify_signature": False})
             email = decoded.get('email')
 

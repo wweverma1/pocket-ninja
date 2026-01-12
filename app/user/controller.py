@@ -7,20 +7,13 @@ from app.models.response import Response
 
 @token_required
 def get_profile(current_user):
-    """
-    Retrieves the authenticated user's profile data with calculated ratings 
-    and current month stats.
-    """
     try:
-        # Ensure monthly stats are fresh before returning
         User.check_and_reset_monthly_stats(str(current_user['_id']))
 
-        # Calculate Average Rating (Base 5.0 + contributions)
         rating_obj = current_user.get('userRating', {})
         total_score = rating_obj.get('totalScore', 5)
         raters_count = len(rating_obj.get('ratedByUsers', []))
 
-        # Average = total / (raters + 1 for the base rating)
         avg_rating = round(total_score / (raters_count + 1), 2)
 
         profile_data = {
@@ -72,7 +65,6 @@ def update_username(current_user):
 
         chosen_username = data.get('username', '').strip()
 
-        # 1. Validation: Length check
         if len(chosen_username) < 3:
             response = Response(
                 message_en="username must be at least 3 characters long.",
@@ -84,7 +76,6 @@ def update_username(current_user):
         status = User.update_username(user_id, chosen_username)
 
         if status == 0:
-            # Success
             result = {"username": chosen_username}
             response = Response(
                 errorStatus=0,
@@ -95,7 +86,6 @@ def update_username(current_user):
             return jsonify(response.to_dict()), 200
 
         elif status == 1:
-            # Username taken
             response = Response(
                 message_en="This username is already taken. Please try another.",
                 message_ja="このユーザー名は既に使用されています。別の名前を試してください。"
@@ -110,7 +100,6 @@ def update_username(current_user):
             return jsonify(response.to_dict()), 400
 
         else:
-            # DB Error or Status 2
             response = Response(
                 message_en="Internal database error. Please try again later.",
                 message_ja="データベースエラーが発生しました。後でもう一度お試しください。"
@@ -173,7 +162,6 @@ def update_proximity(current_user):
 
         proximity = data.get('preferredStoreProximity')
 
-        # Validation: must be number and reasonable (e.g., > 0 and <= 20km)
         if not isinstance(proximity, (int, float)) or proximity <= 0:
             response = Response(
                 message_en="preferredStoreProximity must be a positive number.",
@@ -200,13 +188,9 @@ def update_proximity(current_user):
 
 @token_required
 def get_submitted_receipts(current_user):
-    """
-    GET /user/receipt
-    Query Params: ?month=YYYY-MM (Optional, defaults to current month)
-    """
     try:
         user_id = str(current_user['_id'])
-        month = request.args.get('month')  # e.g., "2023-12"
+        month = request.args.get('month')
 
         receipts = Receipt.get_by_user(user_id, month=month)
 

@@ -1,6 +1,8 @@
-from app import db
 from datetime import datetime, timezone
+from typing import Optional, List, Dict, Any
+
 from bson.objectid import ObjectId
+from app import db
 
 
 class Receipt:
@@ -11,14 +13,13 @@ class Receipt:
         return db['receipts']
 
     @staticmethod
-    def create_receipt(user_id: str):
+    def create_receipt(user_id: str) -> Optional[ObjectId]:
         collection = Receipt.get_collection()
         if collection is None:
             return None
 
         try:
             collection.create_index([("userId", 1), ("submittedAt", -1)])
-            # Index for worker
             collection.create_index([("status", 1), ("processed", 1)])
         except Exception as e:
             print(f"Error creating receipt index: {e}")
@@ -33,14 +34,23 @@ class Receipt:
             "storeIdentifier": None,
             "totalAmount": None,
             "productsFound": None,
-            "processed": "FALSE"
+            "processed": False
         }
 
         result = collection.insert_one(document)
         return result.inserted_id
 
     @staticmethod
-    def update_receipt_status(receipt_id, status: str, status_message: dict, purchase_date: datetime = None, store_name: str = None, store_identifier: dict = None, total_amount: float = None, products_found: list[dict] = None):
+    def update_receipt_status(
+        receipt_id: ObjectId,
+        status: str,
+        status_message: Optional[dict],
+        purchase_date: Optional[datetime] = None,
+        store_name: Optional[str] = None,
+        store_identifier: Optional[dict] = None,
+        total_amount: Optional[float] = None,
+        products_found: Optional[List[dict]] = None
+    ) -> None:
         collection = Receipt.get_collection()
         if collection is None:
             return
@@ -51,13 +61,14 @@ class Receipt:
         }
 
         if status == "SUCCESS":
-            update_fields["purchaseDate"] = purchase_date
-            update_fields["storeName"] = store_name
-            update_fields["storeIdentifier"] = store_identifier
-            update_fields["totalAmount"] = total_amount
-            update_fields["productsFound"] = products_found
-            # Ensure it is ready for processing
-            update_fields["processed"] = "FALSE"
+            update_fields.update({
+                "purchaseDate": purchase_date,
+                "storeName": store_name,
+                "storeIdentifier": store_identifier,
+                "totalAmount": total_amount,
+                "productsFound": products_found,
+                "processed": False
+            })
 
         collection.update_one(
             {"_id": receipt_id},
@@ -65,34 +76,30 @@ class Receipt:
         )
 
     @staticmethod
-    def get_unprocessed_receipt():
+    def get_unprocessed_receipt() -> Optional[Dict[str, Any]]:
         collection = Receipt.get_collection()
         if collection is None:
             return None
 
-        # Find SUCCESS receipts that are NOT processed ("FALSE")
         query = {
             "status": "SUCCESS",
-            "processed": "FALSE"
+            "processed": False
         }
         return collection.find_one(query, sort=[("submittedAt", 1)])
 
     @staticmethod
-    def mark_as_processed(receipt_id):
-        """
-        Marks a receipt as processed by the background worker.
-        """
+    def mark_as_processed(receipt_id: ObjectId) -> None:
         collection = Receipt.get_collection()
         if collection is None:
             return
 
         collection.update_one(
             {"_id": receipt_id},
-            {"$set": {"processed": "TRUE"}}
+            {"$set": {"processed": True}}
         )
 
     @staticmethod
-    def get_by_user(user_id: str, month: str = None):
+    def get_by_user(user_id: str, month: Optional[str] = None) -> List[Dict[str, Any]]:
         collection = Receipt.get_collection()
         if collection is None:
             return []
@@ -123,7 +130,4 @@ class Receipt:
         projection = {"_id": 0, "userId": 0}
         cursor = collection.find(query, projection).sort("submittedAt", -1)
 
-        results = []
-        for doc in cursor:
-            results.append(doc)
-        return results
+        return list(cursor)

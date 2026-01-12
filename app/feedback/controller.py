@@ -6,17 +6,10 @@ from app.models.response import Response
 
 @token_optional
 def get_avg_rating(current_user):
-    """
-    GET /feedback
-    Returns the average rating of the app.
-    If authorized, also returns the user's previously submitted rating.
-    """
     try:
-        # 1. Get Global Average
         avg = Feedback.get_avg_rating()
         result_data = {"averageRating": avg}
 
-        # 2. If User is Logged In, fetch their personal rating
         if current_user:
             user_id = str(current_user['_id'])
             user_feedback = Feedback.get_by_user_id(user_id)
@@ -39,20 +32,14 @@ def get_avg_rating(current_user):
 
 @token_required
 def submit_feedback(current_user):
-    """
-    PUT /feedback
-    Accepts (optional): { "rating": int (1-5), "feedback": str }
-    """
     try:
         data = request.get_json() or {}
 
         rating = data.get('userRating')
         raw_message = data.get('userFeedback')
 
-        # Prepare clean message (handle None or whitespace-only)
         clean_message = raw_message.strip() if raw_message else None
 
-        # --- Validation 1: At least one field required ---
         if rating is None and not clean_message:
             response = Response(
                 message_en="Please provide either a rating or feedback message.",
@@ -60,7 +47,6 @@ def submit_feedback(current_user):
             )
             return jsonify(response.to_dict()), 400
 
-        # --- Validation 2: Rating Validity (if provided) ---
         if rating is not None:
             if not isinstance(rating, int) or not (1 <= rating <= 5):
                 response = Response(
@@ -71,7 +57,6 @@ def submit_feedback(current_user):
 
         user_id = str(current_user['_id'])
 
-        # Call upsert logic
         result = Feedback.upsert_feedback(user_id, rating, clean_message)
 
         if result:
@@ -82,7 +67,12 @@ def submit_feedback(current_user):
             )
             return jsonify(response.to_dict()), 200
         else:
-            return jsonify(Response(message_en="Failed to save feedback.", message_ja="フィードバックの保存に失敗しました。").to_dict()), 500
+            return jsonify(
+                Response(
+                    message_en="Failed to save feedback.",
+                    message_ja="フィードバックの保存に失敗しました。"
+                ).to_dict()
+            ), 500
 
     except Exception as e:
         print(f"Feedback Error: {e}")

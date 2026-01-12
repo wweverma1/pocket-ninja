@@ -1,6 +1,6 @@
 from app import db
 from datetime import datetime
-from bson.objectid import ObjectId
+from typing import List, Dict
 
 
 class Product:
@@ -11,7 +11,7 @@ class Product:
         return db['products']
 
     @staticmethod
-    def get_full_catalog():
+    def get_full_catalog() -> List[Dict]:
         collection = Product.get_collection()
         if collection is None:
             return []
@@ -21,7 +21,6 @@ class Product:
             "englishName": 1,
             "category": 1,
             "avgPrice": 1,
-            "aliases": 1
         })
 
         catalog = []
@@ -31,117 +30,109 @@ class Product:
                 "name": doc.get('name', ''),
                 "english_name": doc.get('englishName', ''),
                 "category": doc.get('category', 'other'),
-                "avg_price": doc.get('avgPrice', 0),
-                "aliases": doc.get('aliases', [])
+                "avg_price": doc.get('avgPrice', 0)
             })
 
         return catalog
 
     @staticmethod
-    def add_products(product_matches: list, store_name: str, purchase_date: datetime):
+    def _sanitize_store_key(store_name: str) -> str:
+        if not store_name:
+            return "unknown_store"
+        return store_name.replace(".", "_").replace("$", "")
+
+    @staticmethod
+    def _create_new_product(collection, match_data: Dict, store_name: str, purchase_date: datetime):
+        safe_store = Product._sanitize_store_key(store_name)
+        price = match_data.get('price', 0)
+
+        new_doc = {
+            "name": match_data.get('canonical_name_ja'),
+            "englishName": match_data.get('canonical_name_en'),
+            "category": match_data.get('category', 'other'),
+            "avgPrice": price,
+            "prices": {
+                safe_store: {
+                    "price": price,
+                    "date": purchase_date
+                }
+            }
+        }
+        collection.insert_one(new_doc)
+
+    @staticmethod
+    def _update_existing_product(
+        collection,
+        existing_product: Dict,
+        match_data: Dict,
+        store_name: str,
+        purchase_date: datetime
+    ):
+        safe_store = Product._sanitize_store_key(store_name)
+        price = match_data.get('price', 0)
+        canonical_ja = match_data.get('canonical_name_ja')
+        canonical_en = match_data.get('canonical_name_en')
+
+        prices = existing_product.get('prices', {})
+        existing_store_data = prices.get(safe_store)
+
+        current_avg = existing_product.get('avgPrice', 0)
+        store_count = len(prices)
+
+        set_fields = {}
+        should_update_price = False
+
+        if existing_store_data:
+            last_update_date = existing_store_data.get('date')
+
+            if not isinstance(last_update_date, datetime) or last_update_date < purchase_date:
+                should_update_price = True
+                price_diff = price - existing_store_data.get('price', 0)
+                count = max(store_count, 1)
+                new_avg = round(current_avg + (price_diff / count))
+                set_fields["avgPrice"] = new_avg
+        else:
+            should_update_price = True
+            new_avg = round((current_avg * store_count + price) / (store_count + 1))
+            set_fields["avgPrice"] = new_avg
+
+        if should_update_price:
+            set_fields[f"prices.{safe_store}"] = {
+                "price": price,
+                "date": purchase_date
+            }
+
+        if canonical_ja and isinstance(canonical_ja, str) and canonical_ja.strip():
+            set_fields["name"] = canonical_ja.strip()
+
+        if canonical_en and isinstance(canonical_en, str) and canonical_en.strip():
+            set_fields["englishName"] = canonical_en.strip()
+
+        if set_fields:
+            collection.update_one(
+                {"_id": existing_product["_id"]},
+                {"$set": set_fields}
+            )
+
+    @staticmethod
+    def add_products(product_matches: List[Dict], store_name: str, purchase_date: datetime):
         collection = Product.get_collection()
         if collection is None:
             return
 
-        for product_match in enumerate(product_matches):
+        for product_match in product_matches:
             try:
                 is_match = product_match.get('is_match')
                 matched_product_index = product_match.get('matched_product_index')
-                enrichment_action = product_match.get('enrichment_action')
-                canonical_ja = product_match.get('canonical_name_ja')
-                canonical_en = product_match.get('canonical_name_en')
 
-                # --- CASE 1: NEW PRODUCT ---
                 if not is_match or matched_product_index is None:
-                    # Insert New
-                    new_doc = {
-                        "name": canonical_ja,
-                        "englishName": canonical_en,
-                        "category": product_match.get('category', 'other'),
-                        "avgPrice": price,
-                        "aliases": [],
-                        "prices": {
-                            store_name: {
-                                "price": price,
-                                "date": purchase_date
-                            }
-                        },
-                        "lastUpdated": datetime.now()
-                    }
-                    collection.insert_one(new_doc)
-                    print(f"Inserted NEW: {canonical_ja}")
-                    continue
+                    Product._create_new_product(collection, product_match, store_name, purchase_date)
 
-                # --- CASE 2: MATCH EXISTING ---
-                existing_product_data = get_db_product_by_index(matched_index)
-                if not existing_product_data:
-                    print(f"Error: Invalid match index {matched_index}")
-                    continue
-
-                product_id = existing_product_data['_id']
-
-                update_ops = {
-                    "$set": {"lastUpdated": datetime.now()},
-                    "$addToSet": {}
-                }
-
-                # A. Handle Enrichment
-                if enrichment_action == "update_name":
-                    update_ops["$set"]["name"] = canonical_ja
-                    update_ops["$set"]["englishName"] = canonical_en
-
-                elif enrichment_action == "add_alias":
-                    # Add the raw receipt name as an alias if it differs from canonical
-                    raw_name = receipt_item.get('name')
-                    if raw_name and raw_name != existing_product_data['name']:
-                        update_ops["$addToSet"]["aliases"] = raw_name
-
-                elif enrichment_action == "merge_information":
-                    # Update names if the new canonical is "better" (handled by LLM choice)
-                    update_ops["$set"]["name"] = canonical_ja
-                    if canonical_en:
-                        update_ops["$set"]["englishName"] = canonical_en
-
-                # B. Update Price Logic (Standard Avg Calc)
-                # We need to fetch the fresh document to calculate avg accurately
-                # (context might be stale if multiple updates happen in one batch)
-                fresh_doc = collection.find_one({"_id": product_id})
-                if fresh_doc:
-                    current_avg = fresh_doc.get('avgPrice', price)
-                    prices_dict = fresh_doc.get('prices', {})
-                    store_entry = prices_dict.get(store_name)
-                    store_count = len(prices_dict)
-
-                    should_update_price = False
-                    new_avg = current_avg
-
-                    if store_entry:
-                        # Existing store: Update only if newer
-                        last_date = store_entry.get('date')
-                        if not isinstance(last_date, datetime) or last_date < purchase_date:
-                            should_update_price = True
-                            # Avg update approximation
-                            price_diff = price - store_entry.get('price')
-                            safe_count = store_count if store_count > 0 else 1
-                            new_avg = round(current_avg + (price_diff / safe_count))
-                    else:
-                        # New store for this product
-                        should_update_price = True
-                        new_avg = round((current_avg * store_count + price) / (store_count + 1))
-
-                    if should_update_price:
-                        update_ops["$set"]["avgPrice"] = new_avg
-                        update_ops["$set"][f"prices.{store_name}"] = {
-                            "price": price,
-                            "date": purchase_date
-                        }
-
-                # Cleanup empty operators
-                if not update_ops["$addToSet"]:
-                    del update_ops["$addToSet"]
-
-                collection.update_one({"_id": product_id}, update_ops)
-                print(f"Updated {product_id} with action {enrichment_action}")
+                else:
+                    existing_product = collection.find_one({"_id": matched_product_index})
+                    if existing_product:
+                        Product._update_existing_product(collection, existing_product,
+                                                         product_match, store_name, purchase_date)
 
             except Exception as e:
-                print(f"Error applying product_match for index {i}: {e}")
+                print(f"Error updating products collection: {e}")

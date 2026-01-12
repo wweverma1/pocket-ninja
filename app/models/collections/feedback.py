@@ -4,9 +4,6 @@ from bson.objectid import ObjectId
 
 
 class Feedback:
-    """
-    Model class to handle database operations for the 'feedback' collection.
-    """
 
     @staticmethod
     def get_collection():
@@ -16,39 +13,28 @@ class Feedback:
 
     @staticmethod
     def upsert_feedback(user_id: str, rating: int = None, message: str = None):
-        """
-        Updates an existing feedback or creates a new one.
-        - Updates rating if provided.
-        - Appends new message to existing message if provided (not empty/whitespace).
-        """
         collection = Feedback.get_collection()
         if collection is None:
             return None
 
-        # Ensure unique index on userId and index on rating for aggregation
         collection.create_index([("userId", 1)], unique=True)
         collection.create_index([("rating", 1)])
 
         now = datetime.now(timezone.utc)
         uid = ObjectId(user_id)
 
-        # Prepare the message string (if valid)
         clean_message = message.strip() if message else None
 
         existing_doc = collection.find_one({"userId": uid})
 
         if existing_doc:
-            # --- Update Logic ---
             update_fields = {"lastUpdated": now}
 
-            # Update rating only if provided (using explicit None check)
             if rating is not None:
                 update_fields["rating"] = rating
 
-            # Append message if provided
             if clean_message:
                 old_msg = existing_doc.get("message", "")
-                # Append with timestamp separator
                 timestamp_str = now.strftime("%Y-%m-%d")
                 if old_msg:
                     new_full_msg = f"{old_msg}\n\n[{timestamp_str}] {clean_message}"
@@ -61,7 +47,6 @@ class Feedback:
             return True
 
         else:
-            # --- Insert Logic ---
             initial_message = ""
             if clean_message:
                 initial_message = f"[{now.strftime('%Y-%m-%d')}] {clean_message}"
@@ -78,7 +63,6 @@ class Feedback:
 
     @staticmethod
     def get_avg_rating():
-        """Calculates the average rating across all feedbacks (skipping None)."""
         collection = Feedback.get_collection()
         if collection is None:
             return None

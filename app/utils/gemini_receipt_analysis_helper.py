@@ -8,8 +8,6 @@ from google import genai
 from google.genai import types
 
 
-# --- Product Category Enum ---
-
 class ProductCategory(str, Enum):
     BEVERAGES = "beverages"
     ALCOHOL = "alcohol"
@@ -27,8 +25,6 @@ class ProductCategory(str, Enum):
     HEALTH_BEAUTY = "health beauty"
     OTHER = "other"
 
-
-# --- Pydantic Models ---
 
 class StoreIdentifier(BaseModel):
     ja: str = Field(description="Japanese branch name only, excluding store brand (e.g., '北8条店', '札幌駅前店')")
@@ -58,10 +54,6 @@ class ReceiptAnalysis(BaseModel):
 
 
 def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, valid_end_date: str, available_stores: list[str]):
-    """
-    Generates optimized prompt for Gemini.
-    Shortened for faster processing while maintaining accuracy.
-    """
     stores_list_str = ", ".join(available_stores)
 
     receipt_analysis_instruction = textwrap.dedent(f"""
@@ -116,10 +108,6 @@ def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, va
 
 
 def analyze_receipt_with_gemini(image_bytes: bytes, target_city: str, valid_start_date: str, valid_end_date: str, available_stores: list[str]):
-    """
-    Analyzes receipt using Gemini 2.5 Flash with structured output.
-    Returns parsed JSON matching ReceiptAnalysis schema.
-    """
     api_key = os.getenv("GEMINI_RECEIPT_ANALYSIS_API_KEY")
     if not api_key:
         print("Error: GEMINI_RECEIPT_ANALYSIS_API_KEY is not set.")

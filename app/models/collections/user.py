@@ -7,21 +7,21 @@ import random
 
 
 class User:
-    """
-    Model class to handle database operations for the 'users' collection.
-    Includes base rating of 5, monthly stat tracking, and rank growth monitoring.
-    """
 
     @staticmethod
     def get_collection():
-        """Helper to get the MongoDB collection or None if DB is not ready."""
         if db is None:
             return None
         return db['users']
 
     @staticmethod
-    def create_user(username: str, email: str = None, line_account_id: str = None, google_account_id: str = None, yahoo_account_id: str = None):
-        """Creates a new user document with initialized lifetime and monthly stats."""
+    def create_user(
+        username: str,
+        email: str = None,
+        line_account_id: str = None,
+        google_account_id: str = None,
+        yahoo_account_id: str = None
+    ):
         collection = User.get_collection()
         if collection is None:
             return None
@@ -37,28 +37,23 @@ class User:
             "userAvatarId": random.randint(1, 8),
             "preferredStoreProximity": 0.5,
 
-            # Rank System
             "rankScore": 0,
-            "lastRankIncrement": 0,  # Tracks the points gained in the most recent action
+            "lastRankIncrement": 0,
 
-            # Global Lifetime Stats
             "totalContributions": 0,
             "totalExpenditure": 0.0,
             "estimatedTotalSavings": 0.0,
 
-            # Rating System (Start with 5.0 base)
             "userRating": {
                 "totalScore": 5,
                 "ratedByUsers": []
             },
 
-            # Monthly Stat Tracking
             "statsMonth": current_month_key,
             "monthlyContributions": 0,
             "monthlyExpenditure": 0.0,
             "monthlySavings": 0.0,
 
-            # Tracking bad uploads
             "consecutiveBadUploads": 0,
             "bannedUntil": None
         }
@@ -71,13 +66,10 @@ class User:
             user_data["yahooAccountId"] = yahoo_account_id
 
         try:
-            # --- Indexes ---
             collection.create_index([("username", 1)], unique=True)
 
-            # Index for Leaderboard (Monthly Contributions DESC, JoinedAt ASC)
             collection.create_index([("monthlyContributions", -1), ("joinedAt", 1)])
 
-            # Index for Rating Score
             collection.create_index([("userRating.totalScore", -1)])
 
             for field in ["lineAccountId", "googleAccountId", "yahooAccountId"]:
@@ -93,7 +85,6 @@ class User:
 
     @staticmethod
     def check_and_reset_monthly_stats(user_id: str):
-        """Resets monthly stats if the calendar month has changed."""
         collection = User.get_collection()
         if collection is None:
             return
@@ -113,10 +104,13 @@ class User:
         )
 
     @staticmethod
-    def update_user_stats(user_id: str, rank_increment: int = 0, contribution: int = 0, expenditure: float = 0.0, savings: float = 0.0):
-        """
-        Updates lifetime and monthly stats, and stores the latest rank gain.
-        """
+    def update_user_stats(
+        user_id: str,
+        rank_increment: int = 0,
+        contribution: int = 0,
+        expenditure: float = 0.0,
+        savings: float = 0.0
+    ):
         collection = User.get_collection()
         if collection is None:
             return False
@@ -136,7 +130,7 @@ class User:
                     "monthlySavings": savings
                 },
                 "$set": {
-                    "lastRankIncrement": rank_increment,  # Overwrites with newest gain
+                    "lastRankIncrement": rank_increment,
                     "consecutiveBadUploads": 0,
                     "bannedUntil": None
                 }
@@ -146,7 +140,6 @@ class User:
 
     @staticmethod
     def add_user_rating(target_user_id: str, rater_user_id: str, score: int):
-        """Adds a rating score (1-5) if the rater hasn't rated this user before."""
         collection = User.get_collection()
         if collection is None:
             return False
@@ -185,9 +178,8 @@ class User:
         if collection is None or not ObjectId.is_valid(user_id):
             return 2
 
-        # 1. Length Restriction
         if len(chosen_username) > 20:
-            return 3  # Error code 3: Username too long
+            return 3
 
         existing_user = collection.find_one({
             "username": chosen_username,
@@ -235,17 +227,10 @@ class User:
 
     @staticmethod
     def get_user_score_detail(user_id: str):
-        """
-        Calculates the user's rank based on monthly contributions.
-        Filter: monthlyContributions > 0.
-        Sorting: monthlyContributions DESC, joinedAt ASC (tie-breaker).
-        Returns: {'rank': int, 'score': int}
-        """
         collection = User.get_collection()
         if collection is None:
             return None
 
-        # Fetch required fields for new ranking logic
         user = collection.find_one(
             {"_id": ObjectId(user_id)},
             {"monthlyContributions": 1, "joinedAt": 1}
@@ -256,13 +241,9 @@ class User:
         my_score = user.get("monthlyContributions", 0)
         my_joined_at = user.get("joinedAt")
 
-        # If contribution is 0, they are not on the leaderboard
         if my_score <= 0:
             return None
 
-        # Count users who are strictly better:
-        # 1. Higher score
-        # 2. Same score but joined earlier
         higher_rank_count = collection.count_documents({
             "$or": [
                 {"monthlyContributions": {"$gt": my_score}},
@@ -280,23 +261,16 @@ class User:
 
     @staticmethod
     def get_top_users(limit=3):
-        """
-        Fetches the top N users based on monthlyContributions.
-        Filter: monthlyContributions > 0.
-        Sort: monthlyContributions DESC, joinedAt ASC.
-        Returns a list of dicts: {username, avatarId, score, contributions}
-        """
         collection = User.get_collection()
         if collection is None:
             return []
 
-        # Update Query and Sort
         cursor = collection.find(
-            {"monthlyContributions": {"$gt": 0}},  # Only non-zero contributions
+            {"monthlyContributions": {"$gt": 0}},
             {
                 "username": 1,
                 "userAvatarId": 1,
-                "monthlyContributions": 1,  # Fetch monthly stats
+                "monthlyContributions": 1,
                 "_id": 0
             }
         ).sort([("monthlyContributions", -1), ("joinedAt", 1)]).limit(limit)
@@ -306,7 +280,6 @@ class User:
             top_users.append({
                 "username": doc.get("username"),
                 "avatarId": doc.get("userAvatarId"),
-                # Score is now monthlyContributions
                 "score": doc.get("monthlyContributions", 0),
                 "contributions": doc.get("monthlyContributions", 0)
             })
@@ -315,14 +288,10 @@ class User:
 
     @staticmethod
     def penalize_user(user_id: str):
-        """
-        Increments bad upload count. If >= 2, bans the user for 1 hours.
-        """
         collection = User.get_collection()
         if collection is None:
             return False
 
-        # 1. Atomic Increment & Fetch
         updated_user = collection.find_one_and_update(
             {"_id": ObjectId(user_id)},
             {"$inc": {"consecutiveBadUploads": 1}},
@@ -333,7 +302,6 @@ class User:
         if not updated_user:
             return False
 
-        # 2. Check Threshold & Apply Ban if needed
         if updated_user.get("consecutiveBadUploads", 0) >= 2:
             ban_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
 
@@ -341,16 +309,12 @@ class User:
                 {"_id": ObjectId(user_id)},
                 {"$set": {"bannedUntil": ban_expiry}}
             )
-            return True  # User was just banned
+            return True
 
-        return False  # User penalized but not yet banned
+        return False
 
     @staticmethod
     def is_upload_allowed(user_id: str):
-        """
-        Checks if user is banned. 
-        If ban has expired, automatically resets stats and allows access.
-        """
         collection = User.get_collection()
         if collection is None:
             return True

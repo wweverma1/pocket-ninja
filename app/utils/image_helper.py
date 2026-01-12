@@ -2,34 +2,22 @@ import io
 import os
 import json
 import requests
-import datetime
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from PIL import Image
 
 
 def optimize_image_stream(file_storage, max_dimension=1500, quality=80) -> bytes:
-    """
-    Smart Optimization:
-    1. If file is already small (<1MB) and WebP -> Return bytes immediately.
-    2. Otherwise -> Resize and compress (Fallback for API clients/errors).
-    """
     try:
-        # 1. Get file size without reading into memory yet
         file_storage.seek(0, os.SEEK_END)
         file_size = file_storage.tell()
-        file_storage.seek(0)  # Reset cursor to start
+        file_storage.seek(0)
 
-        # SMART CHECK: If frontend did its job, don't re-compress (Avoids generation loss)
-        # Check if size is < 1MB and MIME type is webp
         if file_size < 1 * 1024 * 1024 and file_storage.mimetype == 'image/webp':
             return file_storage.read()
 
-        # --- Fallback (Heavy Processing) ---
-        # Only runs if user bypasses frontend or sends a massive raw PNG
         img = Image.open(file_storage)
 
-        # Handle Transparency
         if img.mode in ('RGBA', 'LA'):
             background = Image.new('RGB', img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[-1])
@@ -37,7 +25,6 @@ def optimize_image_stream(file_storage, max_dimension=1500, quality=80) -> bytes
         elif img.mode != 'RGB':
             img = img.convert('RGB')
 
-        # Resize (Longest Edge)
         width, height = img.size
         max_side = max(width, height)
         if max_side > max_dimension:
@@ -46,7 +33,6 @@ def optimize_image_stream(file_storage, max_dimension=1500, quality=80) -> bytes
             new_height = int(height * scale_factor)
             img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-        # Compress
         buffer = io.BytesIO()
         img.save(buffer, format="WEBP", quality=quality, method=4)
         return buffer.getvalue()
@@ -57,12 +43,7 @@ def optimize_image_stream(file_storage, max_dimension=1500, quality=80) -> bytes
 
 
 def upload_receipt_to_drive(image_bytes: bytes, receipt_id: str):
-    """
-    Uploads the optimized receipt image to Google Drive using a Refresh Token.
-    This runs in a separate thread so it doesn't block the API response.
-    """
     try:
-        # 1. Load Config
         client_id = os.getenv("GOOGLE_DRIVE_CLIENT_ID")
         client_secret = os.getenv("GOOGLE_DRIVE_CLIENT_SECRET")
         refresh_token = os.getenv("GOOGLE_DRIVE_REFRESH_TOKEN")
@@ -72,20 +53,16 @@ def upload_receipt_to_drive(image_bytes: bytes, receipt_id: str):
             print("Google Drive Upload Skipped: Missing configuration.")
             return
 
-        # 2. Authenticate & Refresh Token
-        # We construct Credentials manually with the refresh token.
         creds = Credentials(
-            None,  # No initial access token needed
+            None,
             refresh_token=refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
             client_id=client_id,
             client_secret=client_secret
         )
 
-        # Refresh to get a valid access token
         creds.refresh(Request())
 
-        # 3. Prepare Upload Metadata
         filename = f"{receipt_id}.webp"
 
         metadata = {
@@ -93,8 +70,6 @@ def upload_receipt_to_drive(image_bytes: bytes, receipt_id: str):
             "parents": [folder_id]
         }
 
-        # 4. Perform Multipart Upload via Requests
-        # (Using requests directly avoids adding the heavy google-api-python-client dependency)
         headers = {
             "Authorization": f"Bearer {creds.token}"
         }

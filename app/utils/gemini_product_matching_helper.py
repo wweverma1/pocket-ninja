@@ -31,7 +31,6 @@ class ExistingProduct(BaseModel):
     english_name: str = Field(description="English translation/romanization")
     category: ProductCategory = Field(description="Product category")
     avg_price: float = Field(description="Average price from historical data")
-    aliases: list[str] = Field(default=[], description="Known alternative names for this product")
 
 
 class ReceiptProduct(BaseModel):
@@ -41,13 +40,6 @@ class ReceiptProduct(BaseModel):
     price: float = Field(description="Price from this receipt")
 
 
-class EnrichmentAction(str, Enum):
-    NO_CHANGE = "no_change"
-    UPDATE_NAME = "update_name"
-    ADD_ALIAS = "add_alias"
-    MERGE_INFORMATION = "merge_information"
-
-
 class MatchDecision(BaseModel):
     is_match: bool = Field(description="True if matches existing product, False if new product")
 
@@ -55,16 +47,12 @@ class MatchDecision(BaseModel):
         description="Database product index (1, 2, 3, ...). Null if is_match=False"
     )
 
-    enrichment_action: EnrichmentAction = Field(
-        description="How to enrich existing product data based on this match"
-    )
-
     canonical_name_ja: str = Field(
-        description="Best Japanese name. For matches: choose more complete/specific name. For new: standardized receipt name"
+        description="Final Japanese name to use in database. For matches: best version (DB or receipt). For new: standardized receipt name"
     )
 
     canonical_name_en: str = Field(
-        description="Best English name. For matches: choose more complete/specific name. For new: standardized receipt name"
+        description="Final English name to use in database. For matches: best version (DB or receipt). For new: standardized receipt name"
     )
 
 
@@ -74,7 +62,7 @@ class ProductMatchingResult(BaseModel):
 
 def get_matching_instruction():
     matching_instruction = textwrap.dedent("""
-        You are a Product Matching Expert for Japanese grocery retail. Match receipt products to database products and identify enrichment opportunities.
+        You are a Product Matching Expert for Japanese grocery retail. Match receipt products to database products and provide final standardized names.
 
         ## Matching Rules
 
@@ -117,35 +105,27 @@ def get_matching_instruction():
         - No existing product shares brand + type
         - Price + attributes conflicting
 
-        ### 5. Enrichment Actions
+        ### 5. Canonical Name Selection (CRITICAL)
 
-        **UPDATE_NAME** when:
-        - Receipt has size but DB doesn't: "コカコーラ" → "コカコーラ 1.5L"
-        - Receipt has variant: "明治牛乳" → "明治おいしい牛乳 1L"
-        - Receipt fixes truncation or adds brand detail
-        - Receipt cleaner: "ｺｶｺｰﾗ500" → "コカコーラ 500ml"
+        **For MATCHED products:**
+        Choose the BETTER name between DB and receipt based on:
+        - Completeness: Has size, variant, brand → "コカコーラ 500ml" better than "コカコーラ"
+        - Clarity: No truncation, clean OCR → "サントリー天然水" better than "ｻﾝﾄﾘｰ天然..."
+        - Standardization: Full-width katakana, proper spacing → "コカコーラ 500ml" better than "ｺｶｺｰﾗ500"
+        - Specificity: Distinguishes from similar products → "明治おいしい牛乳 1L" better than "明治牛乳"
 
-        **ADD_ALIAS** when:
-        - Both complete, different conventions
-        - Store-specific abbreviation
-        - Valid alternative name
+        Examples:
+        - DB: "コカコーラ", Receipt: "コカコーラ 500ml" → Use "コカコーラ 500ml" (receipt more specific)
+        - DB: "サントリー 天然水 550ml", Receipt: "ｻﾝﾄﾘｰ天然水" → Use "サントリー 天然水 550ml" (DB better)
+        - DB: "Coca Cola", Receipt: "コカコーラ 500ml" → Merge best: "コカコーラ 500ml" / "Coca Cola 500ml"
 
-        **MERGE_INFORMATION** when:
-        - DB has good English, receipt has better Japanese
-        - Receipt has size, DB has better brand format
-        - Combine best of both
-
-        **NO_CHANGE** when:
-        - DB already more complete
-        - Receipt truncated/has OCR errors
-        - DB follows best practices
-
-        ### 6. Canonical Name Format
-        Prefer: [Brand] [Product Type] [Variant] [Size]
-        - Good: "サントリー 天然水 550ml"
-        - Bad: "天然水" (vague), "ｻﾝﾄﾘｰ500" (truncated)
-
-        For new products: standardize by converting half-width to full-width, fixing OCR errors, expanding truncations.
+        **For NEW products:**
+        Standardize the receipt name:
+        - Convert half-width to full-width katakana
+        - Fix obvious OCR errors
+        - Expand truncations
+        - Add proper spacing
+        - Format: [Brand] [Product Type] [Variant] [Size]
 
         ## Special Cases
         - Generic products (卵, 牛乳, 食パン): match if type + size similar
@@ -153,8 +133,12 @@ def get_matching_instruction():
         - Bundles (3個セット): different from single
         - Fresh/prepared: focus on type + unit size
 
-        ## Output
-        Return one MatchDecision per receipt product in order. Choose enrichment_action to improve database quality. Be conservative: when uncertain, create new product.
+        ## Output Requirements
+        Return one MatchDecision per receipt product in order.
+        - canonical_name_ja: The FINAL Japanese name to store in database
+        - canonical_name_en: The FINAL English name to store in database
+        - Be conservative: when uncertain, create new product
+        - Always improve name quality: choose the most complete, clean, standardized version
     """)
 
     return matching_instruction
@@ -174,7 +158,7 @@ def match_products_with_gemini(existing_products: list[dict], receipt_products: 
         ## Receipt Products
         {json.dumps(receipt_products, ensure_ascii=False)}
 
-        Match each receipt product (in order) to database products. Return MatchDecision for each.
+        Match each receipt product (in order) to database products. For each product, provide the FINAL canonical names and category that should be stored in the database.
     """
 
     try:
