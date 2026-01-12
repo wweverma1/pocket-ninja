@@ -2,6 +2,7 @@ from app import db
 from datetime import datetime
 from bson.objectid import ObjectId
 
+
 class Product:
     @staticmethod
     def get_collection():
@@ -11,26 +12,22 @@ class Product:
 
     @staticmethod
     def get_full_catalog():
-        """
-        Returns full catalog including _id for internal mapping.
-        """
         collection = Product.get_collection()
         if collection is None:
             return []
 
-        # We need _id to update the specific document later
         cursor = collection.find({}, {
-            "name": 1, 
-            "englishName": 1, 
-            "category": 1, 
-            "avgPrice": 1, 
+            "name": 1,
+            "englishName": 1,
+            "category": 1,
+            "avgPrice": 1,
             "aliases": 1
         })
 
         catalog = []
         for doc in cursor:
             catalog.append({
-                "_id": doc['_id'], # Critical for updates
+                "_id": doc['_id'],
                 "name": doc.get('name', ''),
                 "english_name": doc.get('englishName', ''),
                 "category": doc.get('category', 'other'),
@@ -41,43 +38,26 @@ class Product:
         return catalog
 
     @staticmethod
-    def add_products(decisions: list, catalog_context: list, receipt_products: list, store_name: str, purchase_date: datetime):
-        """
-        Executes the deduplication and enrichment logic returned by Gemini.
-        """
+    def add_products(product_matches: list, store_name: str, purchase_date: datetime):
         collection = Product.get_collection()
         if collection is None:
             return
 
-        # Helper to map index back to DB Object ID
-        # catalog_context[i] corresponds to index i+1
-        def get_db_product_by_index(idx):
-            if 0 <= idx - 1 < len(catalog_context):
-                return catalog_context[idx - 1]
-            return None
-
-        for i, decision in enumerate(decisions):
+        for product_match in enumerate(product_matches):
             try:
-                # Receipt products and decisions should be parallel arrays (ordered)
-                if i >= len(receipt_products):
-                    break
-                
-                receipt_item = receipt_products[i]
-                price = receipt_item.get('price', 0)
-                
-                is_match = decision.get('is_match')
-                enrichment_action = decision.get('enrichment_action')
-                canonical_ja = decision.get('canonical_name_ja')
-                canonical_en = decision.get('canonical_name_en')
-                matched_index = decision.get('matched_product_index')
+                is_match = product_match.get('is_match')
+                matched_product_index = product_match.get('matched_product_index')
+                enrichment_action = product_match.get('enrichment_action')
+                canonical_ja = product_match.get('canonical_name_ja')
+                canonical_en = product_match.get('canonical_name_en')
 
                 # --- CASE 1: NEW PRODUCT ---
-                if not is_match or matched_index is None:
+                if not is_match or matched_product_index is None:
                     # Insert New
                     new_doc = {
                         "name": canonical_ja,
                         "englishName": canonical_en,
-                        "category": receipt_item.get('category', 'other'),
+                        "category": product_match.get('category', 'other'),
                         "avgPrice": price,
                         "aliases": [],
                         "prices": {
@@ -97,9 +77,9 @@ class Product:
                 if not existing_product_data:
                     print(f"Error: Invalid match index {matched_index}")
                     continue
-                
+
                 product_id = existing_product_data['_id']
-                
+
                 update_ops = {
                     "$set": {"lastUpdated": datetime.now()},
                     "$addToSet": {}
@@ -109,13 +89,13 @@ class Product:
                 if enrichment_action == "update_name":
                     update_ops["$set"]["name"] = canonical_ja
                     update_ops["$set"]["englishName"] = canonical_en
-                
+
                 elif enrichment_action == "add_alias":
                     # Add the raw receipt name as an alias if it differs from canonical
                     raw_name = receipt_item.get('name')
                     if raw_name and raw_name != existing_product_data['name']:
                         update_ops["$addToSet"]["aliases"] = raw_name
-                
+
                 elif enrichment_action == "merge_information":
                     # Update names if the new canonical is "better" (handled by LLM choice)
                     update_ops["$set"]["name"] = canonical_ja
@@ -123,7 +103,7 @@ class Product:
                         update_ops["$set"]["englishName"] = canonical_en
 
                 # B. Update Price Logic (Standard Avg Calc)
-                # We need to fetch the fresh document to calculate avg accurately 
+                # We need to fetch the fresh document to calculate avg accurately
                 # (context might be stale if multiple updates happen in one batch)
                 fresh_doc = collection.find_one({"_id": product_id})
                 if fresh_doc:
@@ -148,7 +128,7 @@ class Product:
                         # New store for this product
                         should_update_price = True
                         new_avg = round((current_avg * store_count + price) / (store_count + 1))
-                    
+
                     if should_update_price:
                         update_ops["$set"]["avgPrice"] = new_avg
                         update_ops["$set"][f"prices.{store_name}"] = {
@@ -164,4 +144,4 @@ class Product:
                 print(f"Updated {product_id} with action {enrichment_action}")
 
             except Exception as e:
-                print(f"Error applying decision for index {i}: {e}")
+                print(f"Error applying product_match for index {i}: {e}")

@@ -1,15 +1,11 @@
 import os
 import json
 import textwrap
-from typing import Optional, Literal
+from typing import Optional
 from enum import Enum
 from pydantic import BaseModel, Field
 from google import genai
-from google.genai import types
-from datetime import datetime
 
-
-# --- Product Category Enum (reuse your existing one) ---
 
 class ProductCategory(str, Enum):
     BEVERAGES = "beverages"
@@ -29,10 +25,7 @@ class ProductCategory(str, Enum):
     OTHER = "other"
 
 
-# --- Pydantic Models for Matching ---
-
 class ExistingProduct(BaseModel):
-    """Product already in database"""
     index: int = Field(description="Database product index (1, 2, 3, ...)")
     name: str = Field(description="Japanese product name")
     english_name: str = Field(description="English translation/romanization")
@@ -42,7 +35,6 @@ class ExistingProduct(BaseModel):
 
 
 class ReceiptProduct(BaseModel):
-    """Product extracted from receipt"""
     name: str = Field(description="Japanese product name from receipt")
     english_name: str = Field(description="English translation/romanization")
     category: ProductCategory = Field(description="Product category")
@@ -50,7 +42,6 @@ class ReceiptProduct(BaseModel):
 
 
 class EnrichmentAction(str, Enum):
-    """Type of enrichment to apply to existing product"""
     NO_CHANGE = "no_change"
     UPDATE_NAME = "update_name"
     ADD_ALIAS = "add_alias"
@@ -58,7 +49,6 @@ class EnrichmentAction(str, Enum):
 
 
 class MatchDecision(BaseModel):
-    """Decision for a single receipt product"""
     is_match: bool = Field(description="True if matches existing product, False if new product")
 
     matched_product_index: Optional[int] = Field(
@@ -79,16 +69,10 @@ class MatchDecision(BaseModel):
 
 
 class ProductMatchingResult(BaseModel):
-    """Complete matching results for all receipt products"""
     matches: list[MatchDecision] = Field(description="Match decision for each receipt product in order")
 
 
 def get_matching_instruction():
-    """
-    Optimized prompt for faster LLM response while maintaining accuracy.
-    Removes verbose output requirements to reduce token generation.
-    """
-
     matching_instruction = textwrap.dedent("""
         You are a Product Matching Expert for Japanese grocery retail. Match receipt products to database products and identify enrichment opportunities.
 
@@ -176,51 +160,7 @@ def get_matching_instruction():
     return matching_instruction
 
 
-def match_products_with_gemini(
-    existing_products: list[dict],
-    receipt_products: list[dict]
-) -> Optional[dict]:
-    """
-    Matches receipt products against existing database products using Gemini.
-    Optimized for speed by reducing output verbosity.
-
-    Args:
-        existing_products: List of dicts with keys: index, name, english_name, category, avg_price, aliases (optional)
-        receipt_products: List of dicts with keys: name, english_name, category, price
-        temperature: Controls consistency (0.1-0.3 recommended). Lower = more consistent.
-
-    Returns:
-        Parsed JSON matching ProductMatchingResult schema, or None on error
-
-    Example usage:
-        existing = [
-            {
-                "index": 1,
-                "name": "コカコーラ",
-                "english_name": "Coca Cola",
-                "category": "beverages",
-                "avg_price": 138.5,
-                "aliases": []
-            }
-        ]
-
-        receipt = [
-            {
-                "name": "コカコーラ 500ml",
-                "english_name": "Coca Cola 500ml", 
-                "category": "beverages",
-                "price": 140.0
-            }
-        ]
-
-        result = deduplicate_products_with_gemini(existing, receipt)
-
-        # result['matches'][0]['is_match'] = True
-        # result['matches'][0]['matched_product_index'] = 1
-        # result['matches'][0]['enrichment_action'] = "update_name"
-        # result['matches'][0]['canonical_name_ja'] = "コカコーラ 500ml"
-    """
-
+def match_products_with_gemini(existing_products: list[dict], receipt_products: list[dict]) -> Optional[dict]:
     api_key = os.getenv("GEMINI_PRODUCT_MATCHING_API_KEY")
     if not api_key:
         print("Error: GEMINI_PRODUCT_MATCHING_API_KEY is not set.")
@@ -228,7 +168,6 @@ def match_products_with_gemini(
 
     instruction = get_matching_instruction()
 
-    # Prepare compact context
     context_str = f"""## Database Products
         {json.dumps(existing_products, ensure_ascii=False)}
 

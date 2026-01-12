@@ -26,14 +26,14 @@ class Receipt:
         document = {
             "userId": ObjectId(user_id),
             "submittedAt": datetime.now(timezone.utc),
-            "status": "PENDING", 
+            "status": "PENDING",
             "statusMessage": None,
             "purchaseDate": None,
             "storeName": None,
             "storeIdentifier": None,
             "totalAmount": None,
             "productsFound": None,
-            "processed": "FALSE" 
+            "processed": "FALSE"
         }
 
         result = collection.insert_one(document)
