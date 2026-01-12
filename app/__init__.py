@@ -1,4 +1,4 @@
-from app.product.worker import start_product_sync_thread
+from app.utils.worker import start_product_sync_thread
 from app.leaderboard.routes import leaderboard_endpoints
 from app.feedback.routes import feedback_endpoints
 from app.product.routes import product_endpoints
