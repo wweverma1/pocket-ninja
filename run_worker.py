@@ -11,7 +11,7 @@ except Exception as e:
 
 if __name__ == "__main__":
     print("Starting Pocket Ninja Background Worker...")
-    
+
     try:
         product_sync_worker(app)
     except KeyboardInterrupt:

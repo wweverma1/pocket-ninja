@@ -87,7 +87,7 @@ def product_sync_worker(app: Flask):
                 receipt = Receipt.get_unprocessed_receipt()
 
                 if not receipt:
-                    time.sleep(5 * 60) 
+                    time.sleep(5 * 60)
                     continue
 
                 _process_single_receipt(app, receipt)
