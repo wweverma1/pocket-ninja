@@ -3,7 +3,6 @@ from typing import Optional, List, Dict, Any
 
 from bson.objectid import ObjectId
 from app import db
-from app.utils.timezone import JST_TZ
 
 
 class Receipt:
@@ -27,7 +26,7 @@ class Receipt:
 
         document = {
             "userId": ObjectId(user_id),
-            "submittedAt": datetime.now(JST_TZ),
+            "submittedAt": datetime.now(timezone.utc),
             "status": "PENDING",
             "statusMessage": None,
             "purchaseDate": None,
@@ -106,11 +105,11 @@ class Receipt:
             return []
 
         if month is None:
-            month = datetime.now(JST_TZ).strftime("%Y-%m")
+            month = datetime.now(timezone.utc).strftime("%Y-%m")
 
         try:
             dt_start_naive = datetime.strptime(month, "%Y-%m")
-            dt_start = dt_start_naive.replace(tzinfo=JST_TZ)
+            dt_start = dt_start_naive.replace(tzinfo=timezone.utc)
 
             if dt_start.month == 12:
                 dt_end = dt_start.replace(year=dt_start.year + 1, month=1)

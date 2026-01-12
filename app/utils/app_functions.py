@@ -3,7 +3,6 @@ import time
 from datetime import datetime
 from flask import request
 from app import app
-from app.utils.timezone import JST_TZ
 
 
 @app.before_request

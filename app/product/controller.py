@@ -11,7 +11,6 @@ from app.models.collections.receipt import Receipt
 from app.utils.auth_helper import token_required
 from app.utils.gemini_receipt_analysis_helper import analyze_receipt_with_gemini
 from app.utils.image_helper import optimize_image_stream, upload_receipt_to_drive
-from app.utils.timezone import JST_TZ
 
 
 TARGET_CITY = os.getenv("TARGET_CITY")
@@ -109,9 +108,9 @@ def get_error_message(error_code):
 def analyze_receipt(optimized_image_bytes):
     available_stores = Store.get_all_store_names()
 
-    now_jst = datetime.now(JST_TZ)
-    valid_end_date = now_jst.strftime("%Y-%m-%d")
-    valid_start_date = (now_jst - timedelta(days=3)).strftime("%Y-%m-%d")
+    now_utc = datetime.now(timezone.utc)
+    valid_end_date = now_utc.strftime("%Y-%m-%d")
+    valid_start_date = (now_utc - timedelta(days=3)).strftime("%Y-%m-%d")
 
     return analyze_receipt_with_gemini(
         optimized_image_bytes,
@@ -176,9 +175,11 @@ def process_successful_receipt(
     ).start()
 
     try:
-        purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d").replace(tzinfo=JST_TZ)
+        # We assume the receipt date (YYYY-MM-DD) refers to that date in UTC for system consistency,
+        # or we simply attach UTC timezone to it to make it aware.
+        purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     except (ValueError, TypeError):
-        purchase_date = datetime.now(JST_TZ) - timedelta(days=3)
+        purchase_date = datetime.now(timezone.utc) - timedelta(days=3)
 
     response = Response(
         errorStatus=0,
