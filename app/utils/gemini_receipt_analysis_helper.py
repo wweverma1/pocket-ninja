@@ -34,7 +34,7 @@ class StoreIdentifier(BaseModel):
 
 class Product(BaseModel):
     name: str = Field(description="Japanese product name from receipt. Clean OCR errors and expand truncations.")
-    english_name: str = Field(description="English translation or romanization")
+    english_name: str = Field(description="English translation or romanization of extracted name")
     category: ProductCategory = Field(description="Product category from predefined list")
     price: float = Field(description="Unit price (tax-included). If multiple quantity, divide by quantity.")
 
@@ -93,14 +93,15 @@ def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, va
 
         **D. Products**
         For each product:
-        - **name**: Japanese name (clean OCR errors, expand truncations like "コカコー..." → "コカコーラ")
-        - **english_name**: English translation/romanization
+        - **name**: Japanese product name from receipt. Clean OCR errors, expand truncations (e.g., "コカコー..." → "コカコーラ"), and remove non-product text such as:
+            - Promotional labels: セール (sale), お買得 (bargain), 特 (special)
+            Keep only the core product name with brand and essential descriptors (e.g., size, flavor)
+        - **english_name**: English translation/romanization of the extracted name
         - **category**: Classify into: beverages, alcohol, snacks, fresh produce, dairy, meat seafood, frozen foods, bakery, household goods, tobacco, prepared foods, condiments, grains staples, health beauty, other
-        - **price**: Unit price (tax-included). If quantity shown (×2, 2個), divide total by quantity
+        - **price**: Unit price (tax-included). If multiple quantity shown (×2, 2個), divide total by quantity
 
         **Rules**:
         - Extract only purchasable products (ignore tax lines, discounts, payment methods)
-        - List each occurrence separately if same product appears multiple times
         - Maintain receipt order
     """)
     return receipt_analysis_instruction
