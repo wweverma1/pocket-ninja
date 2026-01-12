@@ -88,14 +88,19 @@ class Receipt:
         return collection.find_one(query, sort=[("submittedAt", 1)])
 
     @staticmethod
-    def mark_as_processed(receipt_id: ObjectId) -> None:
+    def mark_as_processed(receipt_id: ObjectId, final_matches: List[Dict]) -> None:
         collection = Receipt.get_collection()
         if collection is None:
             return
 
         collection.update_one(
             {"_id": receipt_id},
-            {"$set": {"processed": True}}
+            {
+                "$set": {
+                    "processed": True, 
+                    "matchingResult": final_matches
+                }
+            }
         )
 
     @staticmethod

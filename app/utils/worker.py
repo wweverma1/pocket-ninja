@@ -1,4 +1,3 @@
-import threading
 import time
 from typing import Dict, List, Any
 
@@ -75,12 +74,12 @@ def _process_single_receipt(app: Flask, receipt: Dict) -> None:
         final_matches.append(match_decision)
 
     Product.add_products(final_matches, store_name, purchase_date)
-    Receipt.mark_as_processed(receipt_id)
+    Receipt.mark_as_processed(receipt_id, final_matches)
     print(f"Successfully processed receipt {receipt_id}.")
 
 
 def product_sync_worker(app: Flask):
-    print("Background Product Sync Worker Started.")
+    print("Background Product Sync Worker Logic Initialized.")
 
     with app.app_context():
         while True:
@@ -88,16 +87,11 @@ def product_sync_worker(app: Flask):
                 receipt = Receipt.get_unprocessed_receipt()
 
                 if not receipt:
-                    time.sleep(5 * 60)
+                    time.sleep(5 * 60) 
                     continue
 
                 _process_single_receipt(app, receipt)
 
             except Exception as e:
-                print(f"Critical Error in Product Sync Worker: {e}")
+                print(f"Critical Error in Product Sync Worker loop: {e}")
                 time.sleep(5 * 60)
-
-
-def start_product_sync_thread(app: Flask):
-    thread = threading.Thread(target=product_sync_worker, args=(app,), daemon=True)
-    thread.start()
