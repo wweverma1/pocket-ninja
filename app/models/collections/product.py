@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Dict
 from app.utils.timezone import JST_TZ
 
+
 class Product:
     @staticmethod
     def get_collection():

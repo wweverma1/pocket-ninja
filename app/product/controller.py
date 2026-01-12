@@ -1,6 +1,6 @@
 import os
 import threading
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from flask import request, jsonify
 
 
@@ -108,7 +108,7 @@ def get_error_message(error_code):
 
 def analyze_receipt(optimized_image_bytes):
     available_stores = Store.get_all_store_names()
-    
+
     now_utc = datetime.now(JST_TZ)
     valid_end_date = now_utc.strftime("%Y-%m-%d")
     valid_start_date = (now_utc - timedelta(days=3)).strftime("%Y-%m-%d")
