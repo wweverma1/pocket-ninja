@@ -46,7 +46,7 @@ class ReceiptAnalysis(BaseModel):
     purchase_date: Optional[str] = Field(description="Purchase date in YYYY-MM-DD format. Null if not found.")
 
     store_name: Optional[str] = Field(
-        description="Store brand name in English (e.g., 'Lawson', 'Seven-Eleven', 'FamilyMart', 'AEON'). Null if error.")
+        description="Store brand name in English (e.g., 'Lawson', '7-Eleven', 'FamilyMart', 'AEON'). Null if error.")
     store_identifier: Optional[StoreIdentifier] = Field(
         description="Specific branch location details (excluding store brand name). Null if error.")
 
@@ -83,7 +83,7 @@ def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, va
         - Common formats: "YYYY年MM月DD日", "YY/MM/DD", "YYYY.MM.DD"
 
         **B. Store Identification**
-        - **store_name**: English brand name (e.g., "Lawson", "Seven-Eleven", "AEON")
+        - **store_name**: English brand name (e.g., "Lawson", "7-Eleven", "AEON")
         - **store_identifier**: Branch location only
           - **ja**: Japanese branch name (e.g., "北8条店")
           - **en**: Romanized English (e.g., "Kita 8-jo")
