@@ -1,4 +1,5 @@
 import os
+import time
 import json
 import textwrap
 from typing import Optional
@@ -116,6 +117,8 @@ def analyze_receipt_with_gemini(image_bytes: bytes, target_city: str, valid_star
     instruction = get_receipt_analysis_instruction(target_city, valid_start_date, valid_end_date, available_stores)
 
     try:
+        start_time = time.time()
+
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -132,6 +135,10 @@ def analyze_receipt_with_gemini(image_bytes: bytes, target_city: str, valid_star
                 "temperature": 0.1,
             }
         )
+
+        elapsed_time = time.time() - start_time
+        print(f"Gemini Receipt Analysis completed in {elapsed_time:.2f} seconds")
+
         return json.loads(response.text)
     except Exception as e:
         print(f"Gemini Receipt Analysis Error: {e}")

@@ -1,4 +1,5 @@
 import os
+import time
 import json
 import textwrap
 from typing import Optional
@@ -162,6 +163,8 @@ def match_products_with_gemini(existing_products: list[dict], receipt_products: 
     """
 
     try:
+        start_time = time.time()
+
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -175,6 +178,9 @@ def match_products_with_gemini(existing_products: list[dict], receipt_products: 
                 "temperature": 0.1,
             }
         )
+
+        elapsed_time = time.time() - start_time
+        print(f"Gemini Product Matching completed in {elapsed_time:.2f} seconds")
 
         return json.loads(response.text)
 

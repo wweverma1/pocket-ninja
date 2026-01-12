@@ -26,7 +26,7 @@ def _prepare_catalog_context(full_catalog: List[Dict]) -> tuple[List[Dict], Dict
 
 
 def process_receipt_products(receipt_id, products_found: List[Dict], store_name: str, purchase_date: datetime) -> None:
-    print(f"Processing receipt {receipt_id} for product catalog...")
+    print(f"Processing receipt {receipt_id} for product matching...")
 
     if not products_found:
         print(f"Receipt {receipt_id} has no products. Marking processed.")
