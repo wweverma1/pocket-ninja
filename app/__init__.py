@@ -1,11 +1,3 @@
-from app.leaderboard.routes import leaderboard_endpoints
-from app.feedback.routes import feedback_endpoints
-from app.product.routes import product_endpoints
-from app.user.routes import user_endpoints
-from app.auth.routes import auth_endpoints
-from app.home.routes import home_endpoints
-from pymongo.server_api import ServerApi
-from pymongo import MongoClient
 import os
 
 from flask import Flask
@@ -29,6 +21,8 @@ CORS(app, resources={r"/*": {
     "allow_headers": ["Content-Type", "Authorization"]
 }})
 
+from pymongo import MongoClient
+from pymongo.server_api import ServerApi
 
 db = None
 
@@ -47,6 +41,12 @@ try:
 except Exception as e:
     print(f"Error connecting to MongoDB: {e}")
 
+from app.leaderboard.routes import leaderboard_endpoints
+from app.feedback.routes import feedback_endpoints
+from app.product.routes import product_endpoints
+from app.user.routes import user_endpoints
+from app.auth.routes import auth_endpoints
+from app.home.routes import home_endpoints
 
 app.register_blueprint(home_endpoints)
 app.register_blueprint(auth_endpoints)
@@ -54,3 +54,8 @@ app.register_blueprint(user_endpoints)
 app.register_blueprint(product_endpoints)
 app.register_blueprint(feedback_endpoints)
 app.register_blueprint(leaderboard_endpoints)
+
+from app.utils.app_functions import (
+    before_request,
+    after_request,
+)
