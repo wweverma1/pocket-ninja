@@ -40,7 +40,7 @@ try:
     if not MONGO_URI:
         print("Warning: MONGO_DB_URI not found.")
     else:
-        client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
+        client = MongoClient(MONGO_URI, server_api=ServerApi('1'), tz_aware=True)
         client.admin.command('ping')
 
         db = client[DB_NAME]

@@ -3,7 +3,6 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import request, jsonify
-from app.utils.timezone import JST_TZ
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
@@ -11,8 +10,8 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 def encode_auth_token(user_id: str) -> str:
     try:
         payload = {
-            'exp': datetime.now(JST_TZ) + timedelta(days=7),
-            'iat': datetime.now(JST_TZ),
+            'exp': datetime.now(timezone.utc) + timedelta(days=7),
+            'iat': datetime.now(timezone.utc),
             'sub': user_id
         }
         return jwt.encode(
@@ -32,7 +31,7 @@ def decode_auth_token(auth_token: str) -> str | None:
             SECRET_KEY,
             algorithms=['HS256']
         )
-        if payload['exp'] < datetime.now(JST_TZ).timestamp():
+        if payload['exp'] < datetime.now(timezone.utc).timestamp():
             return None
 
         return payload['sub']

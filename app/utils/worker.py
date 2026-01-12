@@ -7,27 +7,6 @@ from flask import Flask
 from app.models.collections.receipt import Receipt
 from app.models.collections.product import Product
 from app.utils.gemini_product_matching_helper import match_products_with_gemini
-from app.utils.timezone import JST_TZ
-
-
-def _parse_purchase_date(date_input: Any) -> datetime:
-    default_date = datetime.now(JST_TZ) - timedelta(days=3)
-
-    if not date_input:
-        return default_date
-
-    try:
-        if isinstance(date_input, str):
-            dt = datetime.strptime(date_input, "%Y-%m-%d")
-            return dt.replace(tzinfo=JST_TZ)
-
-        if isinstance(date_input, datetime):
-            return date_input.astimezone(JST_TZ) if date_input.tzinfo else date_input.replace(tzinfo=JST_TZ)
-
-        return default_date
-    except Exception as e:
-        print(f"Date parsing failed ({date_input}): {e}. Using default.")
-        return default_date
 
 
 def _prepare_catalog_context(full_catalog: List[Dict]) -> tuple[List[Dict], Dict[int, Any]]:
@@ -60,7 +39,7 @@ def _process_single_receipt(app: Flask, receipt: Dict) -> None:
         return
 
     store_name = receipt.get('storeName')
-    purchase_date = _parse_purchase_date(receipt.get('purchaseDate'))
+    purchase_date = receipt.get('purchaseDate')
 
     full_catalog = Product.get_full_catalog()
     existing_products_ctx, index_id_map = _prepare_catalog_context(full_catalog)
