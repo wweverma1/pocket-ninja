@@ -1,4 +1,3 @@
-from app.utils.worker import start_product_sync_thread
 from app.leaderboard.routes import leaderboard_endpoints
 from app.feedback.routes import feedback_endpoints
 from app.product.routes import product_endpoints
@@ -55,10 +54,3 @@ app.register_blueprint(user_endpoints)
 app.register_blueprint(product_endpoints)
 app.register_blueprint(feedback_endpoints)
 app.register_blueprint(leaderboard_endpoints)
-
-
-try:
-    if db is not None:
-        start_product_sync_thread(app)
-except Exception as e:
-    print(f"Failed to start background worker: {e}")

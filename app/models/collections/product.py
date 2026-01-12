@@ -39,7 +39,7 @@ class Product:
     def _sanitize_store_key(store_name: str) -> str:
         if not store_name:
             return "unknown_store"
-        return store_name.replace(".", "_").replace("$", "")
+        return store_name.replace(".", "").replace("$", "")
 
     @staticmethod
     def _create_new_product(collection, match_data: Dict, store_name: str, purchase_date: datetime):

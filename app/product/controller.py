@@ -11,6 +11,7 @@ from app.models.collections.receipt import Receipt
 from app.utils.auth_helper import token_required
 from app.utils.gemini_receipt_analysis_helper import analyze_receipt_with_gemini
 from app.utils.image_helper import optimize_image_stream, upload_receipt_to_drive
+from app.utils.worker import process_receipt_products
 
 
 TARGET_CITY = os.getenv("TARGET_CITY")
@@ -269,6 +270,11 @@ def add_or_update_product_details(current_user):
                 total_amount=total_amount,
                 products_found=products
             )
+
+            threading.Thread(
+                target=process_receipt_products,
+                args=(receipt_id, products, store_name, purchase_date)
+            ).start()
 
         return jsonify(response.to_dict()), 200
 
