@@ -1,6 +1,7 @@
 from app import db
 from datetime import datetime, timezone
 from bson.objectid import ObjectId
+from app.utils.timezone import JST_TZ
 
 
 class Feedback:
@@ -20,7 +21,7 @@ class Feedback:
         collection.create_index([("userId", 1)], unique=True)
         collection.create_index([("rating", 1)])
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(JST_TZ)
         uid = ObjectId(user_id)
 
         clean_message = message.strip() if message else None

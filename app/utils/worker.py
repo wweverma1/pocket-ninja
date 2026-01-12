@@ -7,10 +7,11 @@ from flask import Flask
 from app.models.collections.receipt import Receipt
 from app.models.collections.product import Product
 from app.utils.gemini_product_matching_helper import match_products_with_gemini
+from app.utils.timezone import JST_TZ
 
 
 def _parse_purchase_date(date_input: Any) -> datetime:
-    default_date = datetime.now(timezone.utc) - timedelta(days=3)
+    default_date = datetime.now(JST_TZ) - timedelta(days=3)
 
     if not date_input:
         return default_date
@@ -18,10 +19,10 @@ def _parse_purchase_date(date_input: Any) -> datetime:
     try:
         if isinstance(date_input, str):
             dt = datetime.strptime(date_input, "%Y-%m-%d")
-            return dt.replace(tzinfo=timezone.utc)
+            return dt.replace(tzinfo=JST_TZ)
 
         if isinstance(date_input, datetime):
-            return date_input.astimezone(timezone.utc) if date_input.tzinfo else date_input.replace(tzinfo=timezone.utc)
+            return date_input.astimezone(JST_TZ) if date_input.tzinfo else date_input.replace(tzinfo=JST_TZ)
 
         return default_date
     except Exception as e:

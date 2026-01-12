@@ -2,6 +2,7 @@ from app import db
 from datetime import datetime, timezone, timedelta
 from bson.objectid import ObjectId
 from pymongo import ReturnDocument
+from app.utils.timezone import JST_TZ
 
 import random
 
@@ -26,7 +27,7 @@ class User:
         if collection is None:
             return None
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(JST_TZ)
         current_month_key = now.strftime("%Y-%m")
 
         user_data = {
@@ -89,7 +90,7 @@ class User:
         if collection is None:
             return
 
-        now_month = datetime.now(timezone.utc).strftime("%Y-%m")
+        now_month = datetime.now(JST_TZ).strftime("%Y-%m")
 
         collection.update_one(
             {"_id": ObjectId(user_id), "statsMonth": {"$ne": now_month}},
@@ -303,7 +304,7 @@ class User:
             return False
 
         if updated_user.get("consecutiveBadUploads", 0) >= 2:
-            ban_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+            ban_expiry = datetime.now(JST_TZ) + timedelta(hours=1)
 
             collection.update_one(
                 {"_id": ObjectId(user_id)},
@@ -332,10 +333,10 @@ class User:
         if banned_until is None:
             return True
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(JST_TZ)
 
         if banned_until.tzinfo is None:
-            banned_until = banned_until.replace(tzinfo=timezone.utc)
+            banned_until = banned_until.replace(tzinfo=JST_TZ)
 
         if now <= banned_until:
             return False
