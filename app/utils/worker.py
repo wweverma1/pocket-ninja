@@ -41,7 +41,7 @@ def process_receipt_products(receipt_id, products_found: List[Dict], store_name:
 
         if not result or 'matches' not in result:
             print(f"No valid decisions from Gemini for {receipt_id}. Skipping.")
-            Receipt.mark_as_processed(receipt_id)
+            # Receipt.mark_as_processed(receipt_id)
             return
 
         final_matches = []
