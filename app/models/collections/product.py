@@ -1,7 +1,7 @@
 from app import db
 from datetime import datetime
 from typing import List, Dict
-
+from app.utils.timezone import JST_TZ
 
 class Product:
     @staticmethod
@@ -83,7 +83,7 @@ class Product:
         should_update_price = False
 
         if existing_store_data:
-            last_update_date = existing_store_data.get('date')
+            last_update_date = existing_store_data.get('date').astimezone(JST_TZ)
 
             if not isinstance(last_update_date, datetime) or last_update_date < purchase_date:
                 should_update_price = True

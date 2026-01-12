@@ -6,6 +6,7 @@ from flask import Flask
 from app.models.collections.receipt import Receipt
 from app.models.collections.product import Product
 from app.utils.gemini_product_matching_helper import match_products_with_gemini
+from app.utils.timezone import JST_TZ
 
 
 def _prepare_catalog_context(full_catalog: List[Dict]) -> tuple[List[Dict], Dict[int, Any]]:
@@ -38,7 +39,7 @@ def _process_single_receipt(app: Flask, receipt: Dict) -> None:
         return
 
     store_name = receipt.get('storeName')
-    purchase_date = receipt.get('purchaseDate')
+    purchase_date = receipt.get('purchaseDate').astimezone(JST_TZ)
 
     full_catalog = Product.get_full_catalog()
     existing_products_ctx, index_id_map = _prepare_catalog_context(full_catalog)
