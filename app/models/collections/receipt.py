@@ -97,7 +97,7 @@ class Receipt:
             {"_id": receipt_id},
             {
                 "$set": {
-                    "processed": True, 
+                    "processed": True,
                     "matchingResult": final_matches
                 }
             }
