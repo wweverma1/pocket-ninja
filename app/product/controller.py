@@ -11,7 +11,6 @@ from app.models.collections.receipt import Receipt
 from app.utils.auth_helper import token_required
 from app.utils.gemini_receipt_analysis_helper import analyze_receipt_with_gemini
 from app.utils.image_helper import optimize_image_stream, upload_receipt_to_drive
-from app.utils.worker import process_receipt_products
 
 
 TARGET_CITY = os.getenv("TARGET_CITY")
@@ -165,7 +164,6 @@ def handle_no_products(receipt_id, user_id):
 
 
 def process_successful_receipt(
-    receipt_id,
     store_name,
     user_id,
     products,
@@ -179,7 +177,7 @@ def process_successful_receipt(
 
     jst_tz = timezone(timedelta(hours=9))
     try:
-        purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d")
+        purchase_date = datetime.strptime(purchase_date_str, "%Y-%m-%d").replace(tzinfo=jst_tz)
     except (ValueError, TypeError):
         purchase_date = datetime.now(jst_tz) - timedelta(days=3)
 
@@ -248,7 +246,6 @@ def add_or_update_product_details(current_user):
             return handle_no_products(receipt_id, user_id)
 
         purchase_date, response = process_successful_receipt(
-            receipt_id,
             store_name,
             user_id,
             products,
@@ -270,11 +267,6 @@ def add_or_update_product_details(current_user):
                 total_amount=total_amount,
                 products_found=products
             )
-
-            threading.Thread(
-                target=process_receipt_products,
-                args=(receipt_id, products, store_name, purchase_date)
-            ).start()
 
         return jsonify(response.to_dict()), 200
 
