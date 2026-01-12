@@ -62,7 +62,6 @@ def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, va
 
         ## Validation Context
         - **Target City**: {target_city}
-        - **Valid Date Range**: {valid_start_date} to {valid_end_date}
         - **Supported Stores**: Convenience stores (konbini), supermarkets and drugstores ONLY
         - **Known Brands**: {stores_list_str}
 
@@ -72,7 +71,6 @@ def get_receipt_analysis_instruction(target_city: str, valid_start_date: str, va
         - **0** = Valid receipt → proceed to extraction
         - **1** = Not a receipt (invoice, ticket, menu, blank/unreadable)
         - **2** = Shows digital editing or tampering
-        - **3** = Date outside valid range
         - **4** = Unsupported store type (clothing, electronics, restaurants, cafes, etc.)
         - **5** = Location outside {target_city}
 
