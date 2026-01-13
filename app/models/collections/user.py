@@ -256,7 +256,7 @@ class User:
 
         return {
             "rank": higher_rank_count + 1,
-            "contributions": my_contributions
+            "points": my_contributions * 5
         }
 
     @staticmethod
@@ -280,7 +280,7 @@ class User:
             top_users.append({
                 "username": doc.get("username"),
                 "avatarId": doc.get("userAvatarId"),
-                "contributions": doc.get("monthlyContributions", 0)
+                "points": doc.get("monthlyContributions", 0) * 5
             })
 
         return top_users
