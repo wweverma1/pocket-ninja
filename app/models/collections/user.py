@@ -238,17 +238,17 @@ class User:
         if not user:
             return None
 
-        my_score = user.get("monthlyContributions", 0)
+        my_contributions = user.get("monthlyContributions", 0)
         my_joined_at = user.get("joinedAt")
 
-        if my_score <= 0:
+        if my_contributions <= 0:
             return None
 
         higher_rank_count = collection.count_documents({
             "$or": [
-                {"monthlyContributions": {"$gt": my_score}},
+                {"monthlyContributions": {"$gt": my_contributions}},
                 {
-                    "monthlyContributions": my_score,
+                    "monthlyContributions": my_contributions,
                     "joinedAt": {"$lt": my_joined_at}
                 }
             ]
@@ -256,7 +256,7 @@ class User:
 
         return {
             "rank": higher_rank_count + 1,
-            "score": my_score
+            "contributions": my_contributions
         }
 
     @staticmethod
@@ -280,7 +280,6 @@ class User:
             top_users.append({
                 "username": doc.get("username"),
                 "avatarId": doc.get("userAvatarId"),
-                "score": doc.get("monthlyContributions", 0),
                 "contributions": doc.get("monthlyContributions", 0)
             })
 

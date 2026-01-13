@@ -4,57 +4,57 @@ from app.utils.auth_helper import token_optional
 from app.models.response import Response
 
 
-def calculate_milestone(my_rank, my_score, top_users):
+def calculate_milestone(my_rank, my_contributions, top_users):
     if not top_users:
         return (
             "Be the first to contribute!",
-            "最初の貢献者になりましょう！"
+            "最初の貢献者になろう！"
         )
 
     if my_rank == 1:
         return (
             "Thank you for being our top contributor!",
-            "トップコントリビューターとしてのご協力ありがとうございます！"
+            "トップコントリビューターになっていただきありがとうございます!"
         )
 
     if my_rank == 2:
-        target_score = top_users[0]['score']
-        diff = max(target_score - my_score, 1)
+        target_contributions = top_users[0]['contributions']
+        diff = max(target_contributions - my_contributions, 1)
         return (
-            f"You need {diff} points to reach 1st place!",
-            f"1位になるにはあと {diff} ポイント必要です！"
+            f"Just {diff} more {'contribution' if diff == 1 else 'contributions'} to take 1st position!",
+            f"あと {diff} 件の投稿で1位になれます！"
         )
 
     if my_rank == 3:
         if len(top_users) >= 2:
-            target_score = top_users[1]['score']
-            diff = max(target_score - my_score, 1)
+            target_contributions = top_users[1]['contributions']
+            diff = max(target_contributions - my_contributions, 1)
             return (
-                f"You need {diff} points to reach 2nd place!",
-                f"2位になるにはあと {diff} ポイント必要です！"
+                f"Just {diff} more {'contribution' if diff == 1 else 'contributions'} to reach 2nd position!",
+                f"あと {diff} 件の投稿で2位になれます！"
             )
         return (
-            "Keep contributing to rise up!",
-            "貢献してランクを上げましょう！"
+            "You're in the top 3! Keep it up!",
+            "トップ3入り！その調子！"
         )
 
-    return calculate_outsider_milestone(my_score, top_users)
+    return calculate_outsider_milestone(my_contributions, top_users)
 
 
-def calculate_outsider_milestone(my_score, top_users):
+def calculate_outsider_milestone(my_contributions, top_users):
     if len(top_users) >= 3:
-        target_score = top_users[2]['score']
-        diff = max(target_score - my_score, 1)
+        target_contributions = top_users[2]['contributions']
+        diff = max(target_contributions - my_contributions, 1)
         return (
-            f"You need {diff} points to be one of our top contributors.",
-            f"トップコントリビューターになるには、あと {diff} ポイント必要です。"
+            f"So close! Just {diff} more {'contribution' if diff == 1 else 'contributions'} to reach top 3!"
+            f"あと {diff} 件の投稿でトップ3入り！"
         )
 
-    target_score = top_users[-1]['score']
-    diff = max(target_score - my_score, 1)
+    target_contributions = top_users[-1]['contributions']
+    diff = max(target_contributions - my_contributions, 1)
     return (
-        f"You need {diff} points to join the leaderboard.",
-        f"リーダーボードに参加するには、あと {diff} ポイント必要です。"
+        f"Only {diff} more {'contribution' if diff == 1 else 'contributions'} to join the leaderboard!",
+        f"あと {diff} 件の投稿でランクイン！"
     )
 
 
@@ -72,10 +72,10 @@ def build_user_stats(current_user, top_users):
         }
 
     my_rank = user_score_detail['rank']
-    my_score = user_score_detail['score']
+    my_contributions = user_score_detail['contributions']
 
     milestone_en, milestone_ja = calculate_milestone(
-        my_rank, my_score, top_users
+        my_rank, my_contributions, top_users
     )
 
     return {
