@@ -124,7 +124,7 @@ class Receipt:
             query = {
                 "userId": ObjectId(user_id),
                 "status": "SUCCESS",
-                "submittedAt": {
+                "purchaseDate": {
                     "$gte": dt_start,
                     "$lt": dt_end
                 }
