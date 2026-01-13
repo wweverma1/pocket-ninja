@@ -18,7 +18,7 @@ def calculate_milestone(my_rank, my_points, top_users):
         )
 
     if my_rank == 2:
-        target_points = top_users[0]['contributions']
+        target_points = top_users[0]['points']
         diff = max(target_points - my_points, 5)
         return (
             f"Just {diff} more points to take 1st position!",
@@ -27,7 +27,7 @@ def calculate_milestone(my_rank, my_points, top_users):
 
     if my_rank == 3:
         if len(top_users) >= 2:
-            target_points = top_users[1]['contributions']
+            target_points = top_users[1]['points']
             diff = max(target_points - my_points, 5)
             return (
                 f"Just {diff} more points to reach 2nd position!",
@@ -43,14 +43,14 @@ def calculate_milestone(my_rank, my_points, top_users):
 
 def calculate_outsider_milestone(my_points, top_users):
     if len(top_users) >= 3:
-        target_points = top_users[2]['contributions']
+        target_points = top_users[2]['points']
         diff = max(target_points - my_points, 5)
         return (
             f"So close! Just {diff} more points to reach top 3!"
             f"あと {diff} ポイントでトップ3入り！"
         )
 
-    target_points = top_users[-1]['contributions']
+    target_points = top_users[-1]['points']
     diff = max(target_points - my_points, 5)
     return (
         f"Only {diff} more points to join the leaderboard!",
