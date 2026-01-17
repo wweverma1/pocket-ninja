@@ -305,15 +305,15 @@ def get_all_products():
 def get_product_details():
     try:
         data = request.get_json() or {}
-        cart_ids = data.get('cart', [])
+        product_ids = data.get('productIds', [])
 
-        if not isinstance(cart_ids, list):
+        if not isinstance(product_ids, list):
             return jsonify(Response(message_en="Invalid input.", message_ja="無効な入力。").to_dict()), 400
 
-        products_list = Product.get_products_by_ids(cart_ids)
+        products_list = Product.get_products_by_ids(product_ids)
 
         # Structure to hold aggregated data per store
-        # { storeName: { storeName: str, productsAvailable: [], totalSavings: 0.0 } }
+        # { storeName: { storeName: str, productsAvailable: [], savings: 0.0 } }
         stores_map = {}
 
         for product in products_list:
@@ -337,7 +337,7 @@ def get_product_details():
                     stores_map[store_key] = {
                         "storeName": store_key,
                         "productsAvailable": [],
-                        "totalSavings": 0.0
+                        "savings": 0.0
                     }
 
                 stores_map[store_key]["productsAvailable"].append({
@@ -345,7 +345,7 @@ def get_product_details():
                     "englishName": product.get('englishName', ''),
                     "price": current_price
                 })
-                stores_map[store_key]["totalSavings"] += savings
+                stores_map[store_key]["savings"] += savings
 
         # Convert map to list
         result_stores = list(stores_map.values())
