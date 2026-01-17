@@ -134,6 +134,9 @@ class Receipt:
             return []
 
         projection = {"_id": 0, "userId": 0, "submittedAt": 0, "processed": 0, "matchingResult": 0}
-        cursor = collection.find(query, projection).sort("purchaseDate", -1)
+        cursor = collection.find(query, projection).sort([
+            ("purchaseDate", -1),
+            ("submittedAt", -1)
+        ])
 
         return list(cursor)
