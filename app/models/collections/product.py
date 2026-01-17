@@ -1,6 +1,7 @@
 from app import db
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Any
+from bson.objectid import ObjectId
 from app.utils.timezone import JST_TZ
 
 
@@ -58,6 +59,30 @@ class Product:
             })
 
         return products
+
+    @staticmethod
+    def get_products_by_ids(product_ids: List[str]) -> List[Dict[str, Any]]:
+        collection = Product.get_collection()
+        if collection is None:
+            return []
+
+        try:
+            object_ids = [ObjectId(pid) for pid in product_ids if ObjectId.is_valid(pid)]
+            if not object_ids:
+                return []
+
+            cursor = collection.find(
+                {"_id": {"$in": object_ids}},
+                {
+                    "name": 1,
+                    "englishName": 1,
+                    "prices": 1
+                }
+            )
+            return list(cursor)
+        except Exception as e:
+            print(f"Error fetching products by ids: {e}")
+            return []
 
     @staticmethod
     def _sanitize_store_key(store_name: str) -> str:

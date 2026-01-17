@@ -303,8 +303,66 @@ def get_all_products():
 
 
 def get_product_details():
-    response = Response(
-        message_en="API Not implemented yet",
-        message_ja="APIはまだ実装されていません"
-    )
-    return jsonify(response.to_dict()), 501
+    try:
+        data = request.get_json() or {}
+        cart_ids = data.get('cart', [])
+
+        if not isinstance(cart_ids, list):
+            return jsonify(Response(message_en="Invalid input.", message_ja="無効な入力。").to_dict()), 400
+
+        products_list = Product.get_products_by_ids(cart_ids)
+
+        # Structure to hold aggregated data per store
+        # { storeName: { storeName: str, productsAvailable: [], totalSavings: 0.0 } }
+        stores_map = {}
+
+        for product in products_list:
+            prices_data = product.get('prices', {})
+            if not prices_data:
+                continue
+
+            # 1. Determine max price for this product across all available stores
+            max_price = 0.0
+            for store_key, store_info in prices_data.items():
+                p = float(store_info.get('price', 0))
+                if p > max_price:
+                    max_price = p
+
+            # 2. Iterate stores again to calculate savings and populate stores_map
+            for store_key, store_info in prices_data.items():
+                current_price = float(store_info.get('price', 0))
+                savings = max_price - current_price
+
+                if store_key not in stores_map:
+                    stores_map[store_key] = {
+                        "storeName": store_key,
+                        "productsAvailable": [],
+                        "totalSavings": 0.0
+                    }
+
+                stores_map[store_key]["productsAvailable"].append({
+                    "name": product.get('name', ''),
+                    "englishName": product.get('englishName', ''),
+                    "price": current_price
+                })
+                stores_map[store_key]["totalSavings"] += savings
+
+        # Convert map to list
+        result_stores = list(stores_map.values())
+
+        response = Response(
+            errorStatus=0,
+            message_en="Product details fetched successfully.",
+            message_ja="製品の詳細が正常に取得されました。",
+            result={"stores": result_stores}
+        )
+        return jsonify(response.to_dict()), 200
+
+    except Exception as e:
+        print(f"Error calculating product details: {e}")
+        return jsonify(
+            Response(
+                message_en="Internal server error.",
+                message_ja="内部サーバーエラー。"
+            ).to_dict()
+        ), 500
