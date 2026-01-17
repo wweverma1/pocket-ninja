@@ -28,7 +28,6 @@ def get_profile(current_user):
             "estimatedTotalSavings": current_user.get('estimatedTotalSavings', 0.0),
             "userRating": avg_rating,
             "monthlyStats": {
-                "month": current_user.get('statsMonth'),
                 "contributions": current_user.get('monthlyContributions', 0),
                 "expenditure": current_user.get('monthlyExpenditure', 0.0),
                 "savings": current_user.get('monthlySavings', 0.0)
