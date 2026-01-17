@@ -8,6 +8,7 @@ from app.models.response import Response
 from app.models.collections.user import User
 from app.models.collections.store import Store
 from app.models.collections.receipt import Receipt
+from app.models.collections.product import Product
 from app.utils.auth_helper import token_required
 from app.utils.gemini_receipt_analysis_helper import analyze_receipt_with_gemini
 from app.utils.image_helper import optimize_image_stream, upload_receipt_to_drive
@@ -271,6 +272,28 @@ def add_or_update_product_details(current_user):
 
     except Exception as e:
         print(f"Product Update Error: {e}")
+        return jsonify(
+            Response(
+                message_en="Internal server error.",
+                message_ja="内部サーバーエラー。"
+            ).to_dict()
+        ), 500
+
+
+def get_all_products():
+    try:
+        products = Product.get_all_products()
+
+        response = Response(
+            errorStatus=0,
+            message_en="Products fetched successfully.",
+            message_ja="製品が正常に取得されました。",
+            result={"products": products}
+        )
+        return jsonify(response.to_dict()), 200
+
+    except Exception as e:
+        print(f"Error fetching products: {e}")
         return jsonify(
             Response(
                 message_en="Internal server error.",

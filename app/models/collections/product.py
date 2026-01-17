@@ -37,6 +37,29 @@ class Product:
         return catalog
 
     @staticmethod
+    def get_all_products() -> List[Dict]:
+        collection = Product.get_collection()
+        if collection is None:
+            return []
+
+        cursor = collection.find({}, {
+            "name": 1,
+            "englishName": 1,
+            "category": 1
+        })
+
+        products = []
+        for doc in cursor:
+            products.append({
+                "id": str(doc['_id']),
+                "name": doc.get('name', ''),
+                "englishName": doc.get('englishName', ''),
+                "category": doc.get('category', 'other')
+            })
+
+        return products
+
+    @staticmethod
     def _sanitize_store_key(store_name: str) -> str:
         if not store_name:
             return "unknown_store"
