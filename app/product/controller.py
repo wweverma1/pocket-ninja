@@ -279,6 +279,7 @@ def add_or_update_product_details(current_user):
             ).to_dict()
         ), 500
 
+
 @token_required
 def get_all_products():
     try:
@@ -301,6 +302,7 @@ def get_all_products():
             ).to_dict()
         ), 500
 
+
 @token_required
 def get_product_details():
     try:
@@ -312,16 +314,14 @@ def get_product_details():
 
         products_list = Product.get_products_by_ids(product_ids)
 
-        # Structure to hold aggregated data per store
         stores_map = {}
-        est_savings = 0.0  # Track maximum savings
+        est_savings = 0.0
 
         for product in products_list:
             prices_data = product.get('prices', {})
             if not prices_data:
                 continue
 
-            # Find max price in single pass while building price list
             max_price = 0.0
             store_prices = []
             for store_key, store_info in prices_data.items():
@@ -330,7 +330,6 @@ def get_product_details():
                 if price > max_price:
                     max_price = price
 
-            # Single loop to calculate savings and populate stores_map
             for store_key, store_price, store_info in store_prices:
                 savings = max_price - store_price
 
@@ -347,12 +346,10 @@ def get_product_details():
                     "price": store_price
                 })
                 stores_map[store_key]["savings"] += savings
-                
-                # Update est_savings if current store has higher savings
+
                 if stores_map[store_key]["savings"] > est_savings:
                     est_savings = stores_map[store_key]["savings"]
 
-        # Convert map to list
         result_stores = list(stores_map.values())
 
         response = Response(
