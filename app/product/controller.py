@@ -281,7 +281,7 @@ def add_or_update_product_details(current_user):
 
 
 @token_required
-def get_all_products():
+def get_all_products(current_user):
     try:
         products = Product.get_all_products()
 
@@ -304,7 +304,7 @@ def get_all_products():
 
 
 @token_required
-def get_product_details():
+def get_product_details(current_user):
     try:
         data = request.get_json() or {}
         product_ids = data.get('productIds', [])
