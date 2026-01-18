@@ -43,6 +43,7 @@ class User:
             "totalContributions": 0,
             "totalExpenditure": 0.0,
             "estimatedTotalSavings": 0.0,
+            "totalRequests": 0,
 
             "userRating": {
                 "totalScore": 5,
@@ -53,6 +54,7 @@ class User:
             "monthlyContributions": 0,
             "monthlyExpenditure": 0.0,
             "monthlySavings": 0.0,
+            "monthlyRequests": 0,
 
             "consecutiveBadUploads": 0,
             "bannedUntil": None
@@ -98,7 +100,8 @@ class User:
                     "statsMonth": now_month,
                     "monthlyContributions": 0,
                     "monthlyExpenditure": 0.0,
-                    "monthlySavings": 0.0
+                    "monthlySavings": 0.0,
+                    "monthlyRequests": 0
                 }
             }
         )
@@ -109,7 +112,8 @@ class User:
         rank_increment: int = 0,
         contribution: int = 0,
         expenditure: float = 0.0,
-        savings: float = 0.0
+        savings: float = 0.0,
+        requests: int = 0
     ):
         collection = User.get_collection()
         if collection is None:
@@ -127,7 +131,9 @@ class User:
                     "totalExpenditure": expenditure,
                     "monthlyExpenditure": expenditure,
                     "estimatedTotalSavings": savings,
-                    "monthlySavings": savings
+                    "monthlySavings": savings,
+                    "totalRequests": requests,
+                    "monthlyRequests": requests
                 },
                 "$set": {
                     "lastRankIncrement": rank_increment,

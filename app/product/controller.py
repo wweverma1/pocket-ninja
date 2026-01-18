@@ -49,15 +49,16 @@ def reward_user_and_update_store(
         print(f"Async reward update failed for user {user_id}: {e}")
 
 
-def update_user_savings_async(user_id, savings):
+def update_user_stats_async(user_id, savings, request_count):
     try:
         User.update_user_stats(
             user_id=user_id,
-            savings=savings
+            savings=savings,
+            requests=request_count
         )
-        print(f"Async savings update for user {user_id} complete.")
+        print(f"Async stats update (savings/requests) for user {user_id} complete.")
     except Exception as e:
-        print(f"Async savings update failed for user {user_id}: {e}")
+        print(f"Async stats update failed for user {user_id}: {e}")
 
 
 def check_upload_permission(current_user):
@@ -323,6 +324,16 @@ def get_product_details(current_user):
         if not isinstance(product_ids, list):
             return jsonify(Response(message_en="Invalid input.", message_ja="無効な入力。").to_dict()), 400
 
+        monthly_contributions = current_user.get('monthlyContributions', 0)
+        limit = 10 + monthly_contributions
+        is_truncated = False
+
+        if len(product_ids) > limit:
+            product_ids = product_ids[:limit]
+            is_truncated = True
+
+        request_count = len(product_ids)
+
         products_list = Product.get_products_by_ids(product_ids)
 
         stores_map = {}
@@ -361,11 +372,11 @@ def get_product_details(current_user):
                 if stores_map[store_key]["savings"] > est_savings:
                     est_savings = stores_map[store_key]["savings"]
 
-        if est_savings > 0:
+        if est_savings > 0 or request_count > 0:
             user_id = str(current_user['_id'])
             threading.Thread(
-                target=update_user_savings_async,
-                args=(user_id, est_savings)
+                target=update_user_stats_async,
+                args=(user_id, est_savings, request_count)
             ).start()
 
         result_stores = list(stores_map.values())
@@ -374,7 +385,10 @@ def get_product_details(current_user):
             errorStatus=0,
             message_en="Product details fetched successfully.",
             message_ja="製品の詳細が正常に取得されました。",
-            result={"stores": result_stores}
+            result={
+                "stores": result_stores,
+                "requestLimitReached": is_truncated
+            }
         )
         return jsonify(response.to_dict()), 200
 
