@@ -35,7 +35,7 @@ class User:
             "joinedAt": now,
 
             "userAvatarId": random.randint(1, 8),
-            "preferredStoreProximity": 0.5,
+            "preferredStoreProximity": 1,
 
             "rankScore": 0,
             "lastRankIncrement": 0,
