@@ -121,26 +121,30 @@ class User:
 
         User.check_and_reset_monthly_stats(user_id)
 
+        update_ops = {
+            "$inc": {
+                "rankScore": rank_increment,
+                "totalContributions": contribution,
+                "monthlyContributions": contribution,
+                "totalExpenditure": expenditure,
+                "monthlyExpenditure": expenditure,
+                "estimatedTotalSavings": savings,
+                "monthlySavings": savings,
+                "totalRequests": requests,
+                "monthlyRequests": requests
+            }
+        }
+
+        if contribution > 0:
+            update_ops["$set"] = {
+                "lastRankIncrement": rank_increment,
+                "consecutiveBadUploads": 0,
+                "bannedUntil": None
+            }
+
         result = collection.update_one(
             {"_id": ObjectId(user_id)},
-            {
-                "$inc": {
-                    "rankScore": rank_increment,
-                    "totalContributions": contribution,
-                    "monthlyContributions": contribution,
-                    "totalExpenditure": expenditure,
-                    "monthlyExpenditure": expenditure,
-                    "estimatedTotalSavings": savings,
-                    "monthlySavings": savings,
-                    "totalRequests": requests,
-                    "monthlyRequests": requests
-                },
-                "$set": {
-                    "lastRankIncrement": rank_increment,
-                    "consecutiveBadUploads": 0,
-                    "bannedUntil": None
-                }
-            }
+            update_ops
         )
         return result.modified_count == 1
 
