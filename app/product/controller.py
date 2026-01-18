@@ -49,6 +49,17 @@ def reward_user_and_update_store(
         print(f"Async reward update failed for user {user_id}: {e}")
 
 
+def update_user_savings_async(user_id, savings):
+    try:
+        User.update_user_stats(
+            user_id=user_id,
+            savings=savings
+        )
+        print(f"Async savings update for user {user_id} complete.")
+    except Exception as e:
+        print(f"Async savings update failed for user {user_id}: {e}")
+
+
 def check_upload_permission(current_user):
     if not User.is_upload_allowed(current_user):
         response = Response(
@@ -349,6 +360,13 @@ def get_product_details(current_user):
 
                 if stores_map[store_key]["savings"] > est_savings:
                     est_savings = stores_map[store_key]["savings"]
+
+        if est_savings > 0:
+            user_id = str(current_user['_id'])
+            threading.Thread(
+                target=update_user_savings_async,
+                args=(user_id, est_savings)
+            ).start()
 
         result_stores = list(stores_map.values())
 
