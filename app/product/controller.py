@@ -279,7 +279,7 @@ def add_or_update_product_details(current_user):
             ).to_dict()
         ), 500
 
-
+@token_required
 def get_all_products():
     try:
         products = Product.get_all_products()
@@ -301,7 +301,7 @@ def get_all_products():
             ).to_dict()
         ), 500
 
-
+@token_required
 def get_product_details():
     try:
         data = request.get_json() or {}
@@ -313,39 +313,44 @@ def get_product_details():
         products_list = Product.get_products_by_ids(product_ids)
 
         # Structure to hold aggregated data per store
-        # { storeName: { storeName: str, productsAvailable: [], savings: 0.0 } }
         stores_map = {}
+        est_savings = 0.0  # Track maximum savings
 
         for product in products_list:
             prices_data = product.get('prices', {})
             if not prices_data:
                 continue
 
-            # 1. Determine max price for this product across all available stores
+            # Find max price in single pass while building price list
             max_price = 0.0
+            store_prices = []
             for store_key, store_info in prices_data.items():
-                p = float(store_info.get('price', 0))
-                if p > max_price:
-                    max_price = p
+                price = float(store_info.get('price', 0))
+                store_prices.append((store_key, price, store_info))
+                if price > max_price:
+                    max_price = price
 
-            # 2. Iterate stores again to calculate savings and populate stores_map
-            for store_key, store_info in prices_data.items():
-                current_price = float(store_info.get('price', 0))
-                savings = max_price - current_price
+            # Single loop to calculate savings and populate stores_map
+            for store_key, store_price, store_info in store_prices:
+                savings = max_price - store_price
 
                 if store_key not in stores_map:
                     stores_map[store_key] = {
-                        "storeName": store_key,
-                        "productsAvailable": [],
+                        "name": store_key,
+                        "products": [],
                         "savings": 0.0
                     }
 
-                stores_map[store_key]["productsAvailable"].append({
+                stores_map[store_key]["products"].append({
                     "name": product.get('name', ''),
                     "englishName": product.get('englishName', ''),
-                    "price": current_price
+                    "price": store_price
                 })
                 stores_map[store_key]["savings"] += savings
+                
+                # Update est_savings if current store has higher savings
+                if stores_map[store_key]["savings"] > est_savings:
+                    est_savings = stores_map[store_key]["savings"]
 
         # Convert map to list
         result_stores = list(stores_map.values())
