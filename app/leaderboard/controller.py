@@ -59,8 +59,7 @@ def calculate_outsider_milestone(my_points, top_users):
 
 
 def build_user_stats(current_user, top_users):
-    user_id = str(current_user['_id'])
-    user_score_detail = User.get_user_score_detail(user_id)
+    user_score_detail = User.get_user_score_detail(current_user)
 
     if not user_score_detail:
         return {

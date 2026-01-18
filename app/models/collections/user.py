@@ -226,20 +226,13 @@ class User:
         return collection.find_one({"_id": ObjectId(user_id)})
 
     @staticmethod
-    def get_user_score_detail(user_id: str):
+    def get_user_score_detail(user_doc: dict):
         collection = User.get_collection()
         if collection is None:
             return None
 
-        user = collection.find_one(
-            {"_id": ObjectId(user_id)},
-            {"monthlyContributions": 1, "joinedAt": 1}
-        )
-        if not user:
-            return None
-
-        my_contributions = user.get("monthlyContributions", 0)
-        my_joined_at = user.get("joinedAt")
+        my_contributions = user_doc.get("monthlyContributions", 0)
+        my_joined_at = user_doc.get("joinedAt")
 
         if my_contributions <= 0:
             return None
@@ -313,20 +306,8 @@ class User:
         return False
 
     @staticmethod
-    def is_upload_allowed(user_id: str):
-        collection = User.get_collection()
-        if collection is None:
-            return True
-
-        user = collection.find_one(
-            {"_id": ObjectId(user_id)},
-            {"bannedUntil": 1}
-        )
-
-        if not user:
-            return True
-
-        banned_until = user.get("bannedUntil")
+    def is_upload_allowed(user_doc: dict):
+        banned_until = user_doc.get("bannedUntil")
 
         if banned_until is None:
             return True
@@ -336,8 +317,10 @@ class User:
         if now <= banned_until:
             return False
 
-        collection.update_one(
-            {"_id": ObjectId(user_id)},
-            {"$set": {"bannedUntil": None, "consecutiveBadUploads": 0}}
-        )
+        collection = User.get_collection()
+        if collection:
+            collection.update_one(
+                {"_id": user_doc["_id"]},
+                {"$set": {"bannedUntil": None, "consecutiveBadUploads": 0}}
+            )
         return True

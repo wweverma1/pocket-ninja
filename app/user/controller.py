@@ -1,4 +1,5 @@
 from flask import request, jsonify
+from datetime import datetime, timezone
 from app.models.collections.user import User
 from app.models.collections.receipt import Receipt
 from app.utils.auth_helper import token_required
@@ -8,7 +9,9 @@ from app.models.response import Response
 @token_required
 def get_profile(current_user):
     try:
-        User.check_and_reset_monthly_stats(str(current_user['_id']))
+        now_month = datetime.now(timezone.utc).strftime("%Y-%m")
+        if current_user.get('statsMonth') != now_month:
+            User.check_and_reset_monthly_stats(str(current_user['_id']))
 
         rating_obj = current_user.get('userRating', {})
         total_score = rating_obj.get('totalScore', 5)

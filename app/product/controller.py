@@ -49,8 +49,8 @@ def reward_user_and_update_store(
         print(f"Async reward update failed for user {user_id}: {e}")
 
 
-def check_upload_permission(user_id):
-    if not User.is_upload_allowed(user_id):
+def check_upload_permission(current_user):
+    if not User.is_upload_allowed(current_user):
         response = Response(
             message_en="Uploads forbidden due to repeated bad uploads. Please try again in some time.",
             message_ja="不正なアップロードが繰り返されたため、アップロードは禁止されています。しばらくしてからもう一度お試しください。"
@@ -195,7 +195,7 @@ def add_or_update_product_details(current_user):
     user_id = str(current_user['_id'])
 
     try:
-        response, status = check_upload_permission(user_id)
+        response, status = check_upload_permission(current_user)
         if response:
             return jsonify(response.to_dict()), status
 
