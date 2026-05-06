@@ -1,4 +1,4 @@
-# PocketNinja Backend
+# PocketNinja
 
 PocketNinja is a bilingual, crowdsourced grocery price tracker. This backend service utilizes Vision Large Language Models (VLMs) and OCR to parse crowdsourced receipts, standardizing product data and tracking price histories across various stores to help users find the best local deals. 
 
